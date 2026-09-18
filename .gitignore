@@ -1,0 +1,8 @@
+output/
+.venv/
+__pycache__/
+*.pyc
+
+# real clinical data / filled-in reports — code-only repo, keep these local
+data/
+ECD_Image_Quality_Report (3).html
