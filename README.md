@@ -28,12 +28,13 @@ drop in new xlsx exports, run one command, get an updated dashboard.
 | Path | What it is |
 |---|---|
 | `report_template.html` | The dashboard shell: all HTML/CSS and the chart/table JS logic. Contains one placeholder, `__REPORT_DATA_JSON__`, inside `<script id="report-data" type="application/json">`, where the real data gets substituted in. You never open this file directly to view a report — it has no data in it. |
-| `build_report.py` | The build script. Reads the IQ-grade xlsx and the ECD-value xlsx, decrypts either one if it's password-protected (via `msoffcrypto-tool`), merges them by filename, classifies every image (pass/fail/excluded/orphan — see below), and writes the filled-in HTML to `output/report.html`. |
+| `build_report.py` | The build script. Reads the IQ-grade xlsx and the ECD-value xlsx, decrypts either one if it's password-protected (via `msoffcrypto-tool`), merges them by filename, classifies every image (pass/fail/excluded/orphan — see below), and writes the filled-in HTML to whatever `--out` path you give it. |
 | `requirements.txt` | Python dependencies: `pandas` (spreadsheet parsing), `openpyxl` (xlsx engine), `msoffcrypto-tool` (decrypting password-protected xlsx files). |
-| `data/` | Where the two source xlsx files live. Not committed by default — see the hosting/privacy note below. |
-| `output/` | Where `build_report.py` writes the generated report (`output/report.html`). Gitignored — it's a build artifact, regenerate it any time from `data/`. |
+| `data/` | The two source xlsx files. Committed to this repo — see the hosting/privacy note below before treating that as the default for other projects. |
+| `docs/index.html` | The generated dashboard, filled with the real data from `data/`. This is what GitHub Pages serves (GitHub Pages is configured to build from `main` / `/docs`). Regenerate it with the command below any time the source data changes. |
+| `output/` | Gitignored local scratch copy of the same generated report, used for quick local viewing without touching the tracked `docs/index.html` until you're ready to update the published copy. |
 | `ECD_Image_Quality_Report (3).html` | The original hand-built report you started with. Kept for reference/comparison; no longer needed day-to-day once you trust the pipeline. |
-| `.gitignore` | Excludes `output/`, `.venv/`, and Python cache files from git. |
+| `.gitignore` | Excludes `output/`, `.venv/`, `.claude/`, and Python cache files from git. |
 
 ## How it works
 
@@ -53,8 +54,13 @@ drop in new xlsx exports, run one command, get an updated dashboard.
    - IQ grade > 0 and ECD present → `pass` if `Binary ECD` is `1`, else `fail`
 5. **Inject.** The classified records are serialized to JSON and substituted
    into `report_template.html` in place of `__REPORT_DATA_JSON__`, producing
-   a single self-contained `output/report.html` — same charts, tables, and
-   filters as the original, now driven by whatever data you just fed in.
+   a single self-contained HTML file — same charts, tables, and filters as
+   the original, now driven by whatever data you just fed in.
+
+The pipeline was verified against the original hand-built report before
+anything else was built on top of it: same 1973 image records, same category
+counts, 0 mismatches, and the surrounding HTML/CSS/JS byte-identical outside
+the data payload.
 
 ## One-time setup
 
@@ -69,6 +75,15 @@ pip install -r requirements.txt
 > way, just run it without a venv (as above) rather than fighting the venv.
 
 ## Regenerating the report
+
+To update the **published** dashboard (GitHub Pages serves this path):
+
+```
+python build_report.py --iq data/multiIQ_Grade.xlsx --ecd data/ECD_screening_ECDValue.xlsx \
+    --iq-password <password> --template report_template.html --out docs/index.html
+```
+
+To generate a local-only copy without touching the published one:
 
 ```
 python build_report.py --iq data/multiIQ_Grade.xlsx --ecd data/ECD_screening_ECDValue.xlsx \
@@ -91,9 +106,13 @@ nothing else needs to change.
 
 ## Viewing it
 
-Simplest option — just double-click `output/report.html`. Everything
-(styles, chart logic, and the data) is embedded in the one file with no
-external API calls, so it works straight off disk in any browser.
+**Hosted:** https://9irija.github.io/Clinical-Report/ — GitHub Pages serves
+`docs/index.html` directly, updates a minute or two after you push a new
+version of that file.
+
+**Locally:** just double-click `output/report.html` (or `docs/index.html`).
+Everything (styles, chart logic, and the data) is embedded in the one file
+with no external API calls, so it works straight off disk in any browser.
 
 If you'd rather serve it (e.g. to avoid any browser file:// quirks):
 
@@ -113,10 +132,15 @@ looks for that exact token and substitutes the merged data there.
 
 ## Hosting note (GitHub Pages)
 
-`report_template.html` has no patient/subject data in it — it's safe to
-publish as-is. `output/report.html` and the files under `data/` contain
-real per-subject clinical data (subject IDs, per-eye/visit ECD values and
-quality grades). GitHub Pages only serves whatever's committed to the repo,
-so if the filled report and source data aren't pushed, a hosted site will
-show the empty template, not the real dashboard — there's no way to host
-"the real dashboard" without that data becoming part of what's published.
+This repo is **public**, and `data/`, `docs/index.html`, and
+`ECD_Image_Quality_Report (3).html` all contain real per-subject clinical
+data (subject IDs, per-eye/visit ECD values and quality grades). That data
+is publicly visible to anyone with the repo/site link — this was a
+deliberate choice made when setting this up, not an oversight. If that
+changes, pull `data/` and the filled reports back out of git (keep only
+`report_template.html`, `build_report.py`, `requirements.txt`) and host
+elsewhere with access control instead.
+
+GitHub Pages is configured to build from the `main` branch, `/docs` folder,
+so the live site always reflects whatever is currently committed at
+`docs/index.html`.
