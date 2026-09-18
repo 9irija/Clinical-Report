@@ -260,7 +260,6 @@
     <h1>Image Quality &amp; ECD Screening Report</h1>
     <p class="sub">Automated summary of multi-class image-quality grading and endothelial cell density (ECD) screening across the ROCKI / TA-CAT specular microscopy dataset.</p>
     <div class="meta-row">
-      <span>Generated <b id="gen-date"></b></span>
       <span>Source files: <b>multiIQ_Grade.xlsx</b>, <b>ECD_screening_ECDValue.xlsx</b></span>
     </div>
   </div>
@@ -428,7 +427,6 @@
 <script id="report-data" type="application/json">__REPORT_DATA_JSON__</script>
 <script>
 const RAW = JSON.parse(document.getElementById('report-data').textContent);
-document.getElementById('gen-date').textContent = new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
 
 const VISIT_ORDER = ['B','M1','M3','M6','M12','M18','M24'];
 const COLORS = {
