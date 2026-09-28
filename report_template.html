@@ -187,6 +187,44 @@
   }
   .placeholder-card b{color:var(--ink);}
 
+  .coming-soon-badge{
+    font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;font-weight:600;
+    background:#F3EEDD;color:#8A7534;border:1px solid #E4D9AE;border-radius:20px;
+    padding:3px 10px;margin-left:10px;vertical-align:middle;
+  }
+  .predict-placeholder{
+    display:flex;gap:20px;flex-wrap:wrap;margin-top:10px;
+    opacity:0.72; /* visually signals "not live yet" without hiding the layout */
+  }
+  .predict-upload{flex:1 1 260px;min-width:240px;}
+  .predict-drop{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    border:1.5px dashed var(--line);border-radius:var(--radius);
+    padding:28px 16px;text-align:center;font-size:13px;color:var(--ink-soft);
+    background:#FBFCFC;cursor:not-allowed;
+  }
+  .predict-drop-icon{font-size:22px;color:var(--ink-soft);}
+  .predict-drop-sub{font-size:11px;color:#93A3A2;}
+  #predict-file-input{display:none;}
+  .predict-run-btn{
+    margin-top:12px;width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);
+    background:#EEF2F1;color:var(--ink-soft);font-family:'IBM Plex Sans',sans-serif;
+    font-size:13.5px;font-weight:600;cursor:not-allowed;
+  }
+  .predict-result{
+    flex:1 1 260px;min-width:240px;border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px 18px;background:#FBFCFC;
+  }
+  .predict-result-title{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:10px;}
+  .predict-result-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:8px 0;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink);
+  }
+  .predict-result-row:first-of-type{border-top:none;}
+  .predict-pill-muted{
+    background:#E7EBEA;color:#6B7877;border-radius:20px;padding:3px 12px;font-size:12px;font-weight:600;
+  }
+
   .assumption-note{
     margin-top:18px;
     border-left:3px solid var(--teal);
@@ -411,6 +449,36 @@
     </div>
     <p class="desc">The two source files were checked for cross-referencing consistency. These counts are informational — they don't block the report, but are worth resolving at the source.</p>
     <table class="qa" id="qa-table"></table>
+  </section>
+
+  <!-- PREDICT NEW IMAGE (placeholder for future live-inference feature) -->
+  <section id="sec-predict">
+    <div class="section-head">
+      <h2>8 · Predict New Image <span class="coming-soon-badge">Coming soon</span></h2>
+    </div>
+    <p class="desc">This report is currently built from pre-computed spreadsheet exports. The plan is to let this page call the two AI models directly: upload a new specular microscopy image, run it through the Binary Image Quality model, and — if it passes — the Binary ECD model, then show the result alongside the rest of this dashboard. Nothing below is wired up yet; it's a placeholder for that integration so the layout exists ahead of time.</p>
+
+    <div class="predict-placeholder">
+      <div class="predict-upload">
+        <label class="predict-drop" for="predict-file-input">
+          <span class="predict-drop-icon">⬆</span>
+          <span>Drag a specular microscopy image here, or click to choose one</span>
+          <span class="predict-drop-sub">PNG · not yet connected to a model</span>
+        </label>
+        <input type="file" id="predict-file-input" accept="image/png" disabled>
+        <button type="button" class="predict-run-btn" disabled>Run prediction</button>
+      </div>
+      <div class="predict-result">
+        <div class="predict-result-title">Expected output (mockup)</div>
+        <div class="predict-result-row"><span>Binary Image Quality AI model</span><span class="predict-pill predict-pill-muted">Good / Bad</span></div>
+        <div class="predict-result-row"><span>Binary ECD AI model</span><span class="predict-pill predict-pill-muted">Acceptable / Low</span></div>
+        <div class="predict-result-row"><span>Confidence</span><span class="predict-pill predict-pill-muted">— %</span></div>
+        <div class="predict-result-row"><span>Real ECD (if measured)</span><span class="predict-pill predict-pill-muted">— cells/mm²</span></div>
+      </div>
+    </div>
+    <div class="assumption-note">
+      <b>What this needs to go live:</b> an inference endpoint that runs the same two models used to build this report against a freshly uploaded image, returning the same shape of result (<code>qpred</code>/<code>qconf</code>/<code>aipred</code>/<code>aiconf</code>) that <code>build_report.py</code> already produces for every existing record — so the new prediction can reuse this page's existing rendering code (<code>whWedgeColor</code>, the pass/fail categories, etc.) instead of a separate display path.
+    </div>
   </section>
 
   <footer>
@@ -899,8 +967,10 @@ function whSelectLoc(loc, recMap){
     ? (rec.ecd!=null ? Math.round(rec.ecd) : '—')
     : (dyn==='pass'||dyn==='fail') ? (rec.aiconf!=null ? Math.round(rec.aiconf)+'%' : '—') : '—';
   const c = whWedgeColor(rec, dyn);
+  const srcCaption = {for_show1:'QC composite (original + outlines + mask)', masks1:'Segmentation mask only — no raw capture on file'}[rec.imgsrc] || '';
   const thumbHtml = rec.img
-    ? `<img class="wp-thumb" src="images/${rec.subj}_${rec.eye}_${rec.visit}_${rec.loc}.jpg" alt="Location ${loc} capture" onerror="this.remove()">`
+    ? `<img class="wp-thumb" src="images/${rec.subj}_${rec.eye}_${rec.visit}_${rec.loc}.jpg" alt="Location ${loc} capture" onerror="this.remove()">
+       ${srcCaption ? `<div style="font-size:10px;color:var(--ink-soft);margin:-4px 0 6px;">${srcCaption}</div>` : ''}`
     : '';
   const noThumbNote = rec.img ? '' : '<div style="margin-top:6px;font-size:11px;color:var(--ink-soft);">No thumbnail available for this location.</div>';
   box.innerHTML = `
@@ -1009,12 +1079,27 @@ function whRender(){
   document.getElementById('wheel-preview-box').innerHTML = 'Click a segment to inspect it';
 }
 
+// Picks whichever option has the most preview thumbnails available, so the
+// wheel's default view actually demonstrates the click-to-preview feature
+// instead of landing on a subject/visit with sparse image coverage.
+function bestByImageCount(options, countFn){
+  let best = options[0], bestCount = -1;
+  options.forEach(o=>{
+    const n = countFn(o);
+    if(n>bestCount){ bestCount=n; best=o; }
+  });
+  return best;
+}
+
 function whPopulateVisits(){
   const subj = whSubjSel.value, eye = whEyeSel.value;
   const visits = VISIT_ORDER.filter(v => RAW.some(r=>r.subj===subj && r.eye===eye && r.visit===v && r.loc!=null));
   populateSelect(whVisitSel, visits, '—');
   whVisitSel.querySelector('option[value="__ALL__"]').remove();
-  if(visits.length) whVisitSel.value = visits[visits.length-1];
+  if(visits.length){
+    whVisitSel.value = bestByImageCount(visits, v =>
+      RAW.filter(r=>r.subj===subj && r.eye===eye && r.visit===v && r.img).length);
+  }
   whRender();
 }
 function whPopulateEyes(){
@@ -1022,12 +1107,20 @@ function whPopulateEyes(){
   const eyes = uniqueSorted(RAW.filter(r=>r.subj===subj && r.loc!=null).map(r=>r.eye));
   populateSelect(whEyeSel, eyes, '');
   whEyeSel.querySelector('option[value="__ALL__"]').remove();
+  if(eyes.length){
+    whEyeSel.value = bestByImageCount(eyes, e =>
+      RAW.filter(r=>r.subj===subj && r.eye===e && r.img).length);
+  }
   whPopulateVisits();
 }
 function whPopulateSubjects(){
   const subjs = uniqueSorted(RAW.filter(r=>r.loc!=null).map(r=>r.subj));
   populateSelect(whSubjSel, subjs, '');
   whSubjSel.querySelector('option[value="__ALL__"]').remove();
+  if(subjs.length){
+    whSubjSel.value = bestByImageCount(subjs, s =>
+      RAW.filter(r=>r.subj===s && r.img).length);
+  }
   whPopulateEyes();
 }
 

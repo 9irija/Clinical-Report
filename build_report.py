@@ -11,10 +11,10 @@ map, per-visit comparisons) but never used to derive pass/fail/excluded --
 that classification always comes from the AI models' own predictions.
 
 Usage:
-    python build_report.py --quality data/testing_predictions_ImageQuality.xlsx \
-        --ecd data/testing_Grade2Plus_BinaryECDPredictions_ECDValues.xlsx \
+    python build_report.py --quality data/predictions_ImageQuality.xlsx \
+        --ecd data/Grade2Plus_BinaryECDPredictions_ECDValues.xlsx \
         --template report_template.html --out docs/index.html \
-        --images-dir images_raw/Images/Images
+        --images-dir images_raw/Images
 """
 
 import argparse
@@ -24,12 +24,25 @@ import re
 from pathlib import Path
 
 import msoffcrypto
+import numpy as np
 import pandas as pd
 from PIL import Image
 
 DATA_PLACEHOLDER = "__REPORT_DATA_JSON__"
 THUMB_WIDTH = 260
 ECD_CUTOFF = 1000  # cells/mm^2 -- the boundary the Binary ECD AI model was trained on
+
+# Raw images arrive split across subfolders of --images-dir, in order of
+# preference: a real single-location capture, then a 3-panel QC composite
+# (original / predicted outlines / coloured masks). Coverage isn't 100% in
+# either folder, so each image is looked up across both and the best
+# available copy wins. A third subfolder, masks1, holds raw label masks
+# (pixel values are tiny integer cell IDs, e.g. 0-6, not intensities) --
+# deliberately excluded here since most locations have only a handful of
+# segmented cells, rendering as a near-blank image that looks broken rather
+# than informative. load_and_normalize() can still render one if a future
+# use case needs it.
+IMAGE_SUBDIR_PRIORITY = ["Images", "for_show1"]
 
 FILENAME_RE = re.compile(r"^(?P<subj>.+)_(?P<eye>[A-Za-z]+)_(?P<visit>[A-Za-z0-9]+)_(?P<loc>\d+)\.[A-Za-z0-9]+$")
 
@@ -83,6 +96,18 @@ def classify(qpred, ecd, aipred):
     return "pass" if aipred == 1 else "fail"
 
 
+def find_source_image(images_dir: "Path | None", filename: str):
+    """Look up `filename` across the priority-ordered subfolders. Returns
+    (path, subdir_name) for the first match, or (None, None)."""
+    if not images_dir:
+        return None, None
+    for sub in IMAGE_SUBDIR_PRIORITY:
+        candidate = images_dir / sub / filename
+        if candidate.is_file():
+            return candidate, sub
+    return None, None
+
+
 def build_records(quality_df: pd.DataFrame, ecd_df: pd.DataFrame, images_dir: "Path | None"):
     quality = quality_df[["Filename", "Predicted Label", "Prob_Class_0", "Prob_Class_1"]].rename(
         columns={"Predicted Label": "qpred", "Prob_Class_0": "q_p0", "Prob_Class_1": "q_p1"}
@@ -109,7 +134,7 @@ def build_records(quality_df: pd.DataFrame, ecd_df: pd.DataFrame, images_dir: "P
         ecd_val = nullable_round(row.ecd_true)
         aipred = nullable_int(row.aipred)
         aiconf = confidence_pct(aipred, row.ai_p0, row.ai_p1)
-        has_image = bool(images_dir) and (images_dir / row.Filename).is_file()
+        _, imgsrc = find_source_image(images_dir, row.Filename)
         records.append(
             {
                 "f": row.Filename,
@@ -123,7 +148,8 @@ def build_records(quality_df: pd.DataFrame, ecd_df: pd.DataFrame, images_dir: "P
                 "aipred": aipred,
                 "aiconf": aiconf,
                 "cat": classify(qpred, ecd_val, aipred),
-                "img": has_image,
+                "img": imgsrc is not None,
+                "imgsrc": imgsrc,
             }
         )
 
@@ -135,6 +161,24 @@ def thumb_name(filename: str) -> str:
     return Path(filename).stem + ".jpg"
 
 
+def load_and_normalize(path: Path, subdir: str) -> Image.Image:
+    im = Image.open(path)
+    if subdir == "masks1":
+        # raw label masks: pixel values are small integer cell IDs (e.g. 0-6),
+        # not intensities -- naive mode conversion renders as near-solid black,
+        # so stretch to the full 0-255 range first to make cell regions visible
+        arr = np.array(im)
+        lo, hi = int(arr.min()), int(arr.max())
+        if hi > lo:
+            arr = ((arr.astype("float32") - lo) / (hi - lo) * 255).astype("uint8")
+        else:
+            arr = np.zeros_like(arr, dtype="uint8")
+        return Image.fromarray(arr, mode="L").convert("RGB")
+    if im.mode in ("I", "I;16", "I;16B"):
+        return im.convert("L").convert("RGB")
+    return im.convert("RGB")
+
+
 def build_thumbnails(records, images_dir: Path, thumbs_dir: Path):
     thumbs_dir.mkdir(parents=True, exist_ok=True)
     written = 0
@@ -144,11 +188,12 @@ def build_thumbnails(records, images_dir: Path, thumbs_dir: Path):
         dest = thumbs_dir / thumb_name(rec["f"])
         if dest.exists():
             continue
-        with Image.open(images_dir / rec["f"]) as im:
-            im = im.convert("L") if im.mode in ("I", "I;16", "I;16B") else im.convert("RGB")
-            ratio = THUMB_WIDTH / im.width
-            im = im.resize((THUMB_WIDTH, max(1, round(im.height * ratio))), Image.LANCZOS)
-            im.save(dest, "JPEG", quality=78)
+        src_path, subdir = find_source_image(images_dir, rec["f"])
+        im = load_and_normalize(src_path, subdir)
+        ratio = THUMB_WIDTH / im.width
+        im = im.resize((THUMB_WIDTH, max(1, round(im.height * ratio))), Image.LANCZOS)
+        im.save(dest, "JPEG", quality=78)
+        im.close()
         written += 1
     return written
 
@@ -165,7 +210,7 @@ def main():
         "--images-dir",
         default=None,
         type=Path,
-        help="Folder of raw per-location images (matched by exact filename) to generate preview thumbnails from",
+        help="Parent folder containing the Images/for_show1/masks1 subfolders of raw images to generate preview thumbnails from",
     )
     args = parser.parse_args()
 

@@ -62,9 +62,14 @@ view shows the model's confidence (%), not a fabricated ECD number.
    - `Predicted Label` (quality model) is `0` → `excluded_poor_quality`
    - quality model says `Good` but there's no ECD-file row for it → `excluded_missing_ecd`
    - quality model says `Good` and an ECD-file row exists → `pass` if `Predicted Label_ECDScreening` is `1`, else `fail`
-5. **Thumbnails** (optional, via `--images-dir`). For every record whose
-   filename matches a file in that folder, resize it to a 260px-wide JPEG
-   and drop it in `<out>/images/`.
+5. **Thumbnails** (optional, via `--images-dir`). Coverage isn't complete in
+   any single raw-image folder, so each filename is looked up across
+   `Images/` (real single-location capture, preferred) then `for_show1/` (a
+   3-panel QC composite, used as a fallback) inside `--images-dir`, resized
+   to a 260px-wide JPEG, and dropped in `<out>/images/`. A third subfolder,
+   `masks1/` (raw segmentation label masks), is deliberately **not** used —
+   most locations have only a handful of segmented cells, so it renders as a
+   near-blank image that looks broken rather than informative.
 6. **Inject.** The classified records are serialized to JSON and substituted
    into `report_template.html` in place of `__REPORT_DATA_JSON__`, producing
    a single self-contained HTML file.
@@ -90,8 +95,11 @@ including refreshing preview thumbnails from a local folder of raw images:
 python build_report.py --quality data/predictions_ImageQuality.xlsx \
     --ecd data/Grade2Plus_BinaryECDPredictions_ECDValues.xlsx \
     --template report_template.html --out docs/index.html \
-    --images-dir images_raw/Images/Images
+    --images-dir images_raw/Images
 ```
+
+(`--images-dir` points at the folder that directly *contains* `Images/` and
+`for_show1/`, not at `Images/` itself — the script checks both.)
 
 Drop `--images-dir` entirely if you don't have the raw images locally —
 the report still works fine without thumbnails, it just shows data only.
@@ -121,15 +129,22 @@ nothing else needs to change.
 ## Getting the raw preview images
 
 The dashboard's click-to-preview thumbnails come from a raw capture folder
-that's too large to keep in the repo (~2GB zipped). To refresh them:
+that's too large to keep in the repo (~2GB zipped, ~4GB unzipped). To
+refresh them:
 1. Download the source images folder as a zip (e.g. from wherever your team
    shares it) into the project root.
-2. Unzip it — this project expects the actual per-location captures at
-   `images_raw/Images/Images/<Filename>.png` (a folder of 3-panel QC
-   composites, `for_show1/`, and one of raw 16-bit segmentation masks,
-   `masks1/`, may also be present in the same archive — only `Images/Images`
-   is used).
-3. Re-run the regenerate command above with `--images-dir images_raw/Images/Images`.
+2. Unzip it — this project expects `images_raw/Images/Images/<Filename>.png`
+   (real captures) and `images_raw/Images/for_show1/<Filename>.png` (QC
+   composite fallback); a third subfolder, `images_raw/Images/masks1/`, may
+   also be present but is intentionally unused (see "How it works" above).
+3. Re-run the regenerate command above with `--images-dir images_raw/Images`.
+
+No single folder covers every image (~75% in `Images/`, rising to ~87% once
+`for_show1/` fills the gaps) — this is a real gap in the source data, not a
+bug in the pipeline. The wheel's default subject/eye/visit is chosen to
+have good thumbnail coverage so the preview feature is visible right away;
+switching to a sparsely-covered subject will show "No thumbnail available"
+for locations that genuinely have no captured image on file.
 
 ## Viewing it
 
@@ -158,6 +173,24 @@ then open http://localhost:8000/report.html.
 just don't touch the `__REPORT_DATA_JSON__` placeholder (inside the
 `<script id="report-data" type="application/json">` tag). `build_report.py`
 looks for that exact token and substitutes the merged data there.
+
+## Where this is headed: live prediction on new images
+
+Right now the dashboard only displays pre-computed spreadsheet exports.
+The plan is to let this same page accept a newly captured image, run it
+through the two AI models directly, and show the result inline. Section 8
+of the report (**"Predict New Image"**) is a **non-functional placeholder**
+for that — an upload control and a mockup result card, both disabled, so
+the layout exists ahead of the actual integration. Nothing about it changes
+how the rest of the report is built or displayed today.
+
+When that's implemented, the design intent is for it to reuse the existing
+per-record shape (`qpred`/`qconf`/`ecd`/`aipred`/`aiconf`) that
+`build_report.py` already produces, so a live prediction can be rendered
+with the same `whWedgeColor`/pass-fail-category logic already in
+`report_template.html` instead of a separate code path. That'll need an
+actual inference endpoint (the two trained models aren't part of this
+repo) — out of scope until that piece exists.
 
 ## Hosting note (GitHub Pages)
 
