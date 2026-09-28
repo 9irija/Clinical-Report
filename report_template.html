@@ -442,10 +442,27 @@
     </div>
   </section>
 
+  <!-- VISIT COMPARISON WHEEL -->
+  <section id="sec-wheel-compare">
+    <div class="section-head">
+      <h2>7 · Visit Comparison Wheel — Real ECD</h2>
+    </div>
+    <p class="desc">The same 15-location wheel as Section 6, shown for two visits side by side — always coloured by the real, segmented-cell ECD value (0–3000 scale), never the AI prediction, so a genuine change between visits is visible at a glance. Locations with a meaningful decline (≥100 cells/mm²) from the 1st to the 2nd visit are called out below.</p>
+
+    <div class="filters" style="margin-top:0;">
+      <div><span class="flabel">Subject</span><select id="cw-subj"></select></div>
+      <div><span class="flabel">Eye</span><select id="cw-eye"></select></div>
+      <div><span class="flabel">1st visit</span><select id="cw-visitA"></select></div>
+      <div><span class="flabel">2nd visit</span><select id="cw-visitB"></select></div>
+    </div>
+
+    <div id="cw-body" class="rm-body"></div>
+  </section>
+
   <!-- QA -->
   <section id="sec-qa">
     <div class="section-head">
-      <h2>7 · Data Consistency Notes</h2>
+      <h2>8 · Data Consistency Notes</h2>
     </div>
     <p class="desc">The two source files were checked for cross-referencing consistency. These counts are informational — they don't block the report, but are worth resolving at the source.</p>
     <table class="qa" id="qa-table"></table>
@@ -454,7 +471,7 @@
   <!-- PREDICT NEW IMAGE (placeholder for future live-inference feature) -->
   <section id="sec-predict">
     <div class="section-head">
-      <h2>8 · Predict New Image <span class="coming-soon-badge">Coming soon</span></h2>
+      <h2>9 · Predict New Image <span class="coming-soon-badge">Coming soon</span></h2>
     </div>
     <p class="desc">This report is currently built from pre-computed spreadsheet exports. The plan is to let this page call the two AI models directly: upload a new specular microscopy image, run it through the Binary Image Quality model, and — if it passes — the Binary ECD model, then show the result alongside the rest of this dashboard. Nothing below is wired up yet; it's a placeholder for that integration so the layout exists ahead of time.</p>
 
@@ -1128,6 +1145,136 @@ whSubjSel.addEventListener('change', whPopulateEyes);
 whEyeSel.addEventListener('change', whPopulateVisits);
 whVisitSel.addEventListener('change', whRender);
 
+/* ---------------- VISIT COMPARISON WHEEL (Section 7) ---------------- */
+// Always coloured by the real, segmented-cell ECD value -- never the AI
+// prediction -- so this view is independent of wheelMode/whWedgeColor.
+const cwSubjSel = document.getElementById('cw-subj');
+const cwEyeSel = document.getElementById('cw-eye');
+const cwVisitASel = document.getElementById('cw-visitA');
+const cwVisitBSel = document.getElementById('cw-visitB');
+const CW_DECLINE_THRESHOLD = 100; // cells/mm² -- minimum drop to call out as a "reduction"
+
+function cwColor(rec){
+  if(!rec) return COLORS.miss.fill;
+  if(rec.ecd!=null) return ecdColorScale(rec.ecd);
+  return rec.cat==='excluded_poor_quality' ? COLORS.excl.fill : COLORS.miss.fill;
+}
+function cwTextColor(rec){
+  return (rec && rec.ecd!=null) ? '#1B2A29' : '#3A4746';
+}
+function cwLabel(rec){
+  if(!rec) return 'n/a';
+  if(rec.ecd!=null) return Math.round(rec.ecd);
+  return rec.cat==='excluded_poor_quality' ? 'excl' : 'n/a';
+}
+
+function cwWheelSVG(recMap){
+  const cx=150, cy=150;
+  const rOuterMax=140, rOuterMin=96, rInnerMax=90, rInnerMin=42, rCentre=38;
+  const toRad = d => (d * Math.PI) / 180;
+  const wedgeLabelPos = (rOuter, rInner, midDeg) => {
+    const rMid = (rOuter+rInner)/2, a = toRad(midDeg);
+    return [cx + rMid*Math.cos(a), cy + rMid*Math.sin(a)];
+  };
+  let svg = '';
+  OUTER_RING_LOCS.forEach((loc,i)=>{
+    const start = -90 + i*60, end = start+60;
+    const rec = recMap[loc];
+    if(!rec) return;
+    svg += `<path d="${annularSectorPath(cx,cy,rOuterMax,rOuterMin,start,end)}" fill="${cwColor(rec)}" stroke="#ffffff" stroke-width="2"/>`;
+    const [lx,ly] = wedgeLabelPos(rOuterMax, rOuterMin, (start+end)/2);
+    svg += `<text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="12" font-family="IBM Plex Sans, sans-serif" fill="${cwTextColor(rec)}" font-weight="600">${cwLabel(rec)}</text>`;
+  });
+  INNER_RING_LOCS.forEach((loc,i)=>{
+    const start = -90 + i*45, end = start+45;
+    const rec = recMap[loc];
+    if(!rec) return;
+    svg += `<path d="${annularSectorPath(cx,cy,rInnerMax,rInnerMin,start,end)}" fill="${cwColor(rec)}" stroke="#ffffff" stroke-width="2"/>`;
+    const [lx,ly] = wedgeLabelPos(rInnerMax, rInnerMin, (start+end)/2);
+    svg += `<text x="${lx}" y="${ly+3}" text-anchor="middle" font-size="10" font-family="IBM Plex Sans, sans-serif" fill="${cwTextColor(rec)}" font-weight="600">${cwLabel(rec)}</text>`;
+  });
+  const centreRec = recMap[1];
+  if(centreRec){
+    svg += `<circle cx="${cx}" cy="${cy}" r="${rCentre}" fill="${cwColor(centreRec)}" stroke="#ffffff" stroke-width="2"/>`;
+    svg += `<text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="12" font-family="IBM Plex Sans, sans-serif" fill="${cwTextColor(centreRec)}" font-weight="600">${cwLabel(centreRec)}</text>`;
+  }
+  return `<svg viewBox="0 0 300 300" width="240" height="240">${svg}</svg>`;
+}
+
+function cwReductionText(recA, recB){
+  const declines = [];
+  for(let loc=1; loc<=15; loc++){
+    const a = recA[loc], b = recB[loc];
+    if(a && b && a.ecd!=null && b.ecd!=null){
+      const delta = b.ecd - a.ecd;
+      if(delta <= -CW_DECLINE_THRESHOLD) declines.push({loc, delta, region: whRegionLabel(loc)});
+    }
+  }
+  if(declines.length===0){
+    return '<span style="color:var(--ink-soft);">No location shows a meaningful ECD decline (≥100 cells/mm²) between the two visits.</span>';
+  }
+  const byRegion = {};
+  declines.forEach(d=>{ (byRegion[d.region] = byRegion[d.region]||[]).push(d); });
+  const order = ['Central','Paracentral','Peripheral'];
+  const parts = order.filter(r=>byRegion[r]).map(region=>{
+    const locs = byRegion[region].sort((a,b)=>a.loc-b.loc);
+    return `${region} (loc. ${locs.map(d=>d.loc).join(', ')})`;
+  });
+  return `<b style="color:#B23A22;">Reduction:</b> ${parts.join(', ')}`;
+}
+
+function cwRender(){
+  const subj = cwSubjSel.value, eye = cwEyeSel.value, vA = cwVisitASel.value, vB = cwVisitBSel.value;
+  const body = document.getElementById('cw-body');
+  if(!subj || !eye || !vA || !vB){
+    body.innerHTML = '<div class="rm-empty">Not enough visits with location data for this subject/eye.</div>';
+    return;
+  }
+  const recA = rmLocRecords(subj, eye, vA);
+  const recB = rmLocRecords(subj, eye, vB);
+  body.innerHTML = `
+    <div class="rm-pair" style="display:flex;gap:26px;width:100%;justify-content:center;flex-wrap:wrap;">
+      <div class="rm-eye"><h3>1st visit &nbsp;— ${vA}</h3>${cwWheelSVG(recA)}</div>
+      <div class="rm-eye"><h3>2nd visit &nbsp;— ${vB}</h3>${cwWheelSVG(recB)}</div>
+    </div>
+    <div class="wh-scale-bar" style="display:flex;margin:14px auto 0;">
+      <div class="wh-scale-track"><div class="wh-scale-gradient"></div></div>
+      <div class="wh-scale-labels"><span>3000</span><span>2000</span><span>1000</span><span>0</span></div>
+    </div>
+    <div style="margin-top:14px;font-size:13.5px;text-align:center;">${cwReductionText(recA, recB)}</div>`;
+}
+
+function cwPopulateVisits(){
+  const subj = cwSubjSel.value, eye = cwEyeSel.value;
+  const visits = VISIT_ORDER.filter(v => RAW.some(r=>r.subj===subj && r.eye===eye && r.visit===v && r.loc!=null));
+  populateSelect(cwVisitASel, visits, '—');
+  populateSelect(cwVisitBSel, visits, '—');
+  cwVisitASel.querySelector('option[value="__ALL__"]').remove();
+  cwVisitBSel.querySelector('option[value="__ALL__"]').remove();
+  if(visits.length){
+    cwVisitASel.value = visits[0];
+    cwVisitBSel.value = visits[visits.length-1];
+  }
+  cwRender();
+}
+function cwPopulateEyes(){
+  const subj = cwSubjSel.value;
+  const eyes = uniqueSorted(RAW.filter(r=>r.subj===subj && r.loc!=null).map(r=>r.eye));
+  populateSelect(cwEyeSel, eyes, '');
+  cwEyeSel.querySelector('option[value="__ALL__"]').remove();
+  cwPopulateVisits();
+}
+function cwPopulateSubjects(){
+  const subjs = uniqueSorted(RAW.filter(r=>r.loc!=null).map(r=>r.subj));
+  populateSelect(cwSubjSel, subjs, '');
+  cwSubjSel.querySelector('option[value="__ALL__"]').remove();
+  cwPopulateEyes();
+}
+cwSubjSel.addEventListener('change', cwPopulateEyes);
+cwEyeSel.addEventListener('change', cwPopulateVisits);
+cwVisitASel.addEventListener('change', cwRender);
+cwVisitBSel.addEventListener('change', cwRender);
+
 function renderQA(){
   const missingEcd = RAW.filter(r=>r.cat==='excluded_missing_ecd').length;
   const qualityFalseNeg = RAW.filter(r=>r.cat==='excluded_poor_quality' && r.ecd!=null).length;
@@ -1185,6 +1332,7 @@ renderAll();
 rmPopulateSubjects();
 whRenderLegend();
 whPopulateSubjects();
+cwPopulateSubjects();
 </script>
 
 </body>
