@@ -73,7 +73,7 @@
     display:grid;
     grid-template-columns:repeat(4,1fr);
     gap:14px;
-    margin-top:-34px;
+    margin-top:24px;
   }
   .kpi{
     background:var(--panel);
@@ -109,7 +109,50 @@
   }
   .filters .count-note{margin-left:auto;color:var(--ink-soft);font-size:12.5px;}
 
-  section{margin-top:46px;}
+  html{scroll-behavior:smooth;}
+  section{margin-top:46px;scroll-margin-top:64px;}
+
+  .section-nav{
+    position:sticky;top:0;z-index:20;
+    background:rgba(243,246,245,0.92);backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);
+  }
+  .section-nav-inner{
+    display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;
+    -ms-overflow-style:none;
+  }
+  .section-nav-inner::-webkit-scrollbar{display:none;}
+  .section-nav a{
+    flex:none;padding:12px 9px;font-size:12px;color:var(--ink-soft);
+    text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent;
+    transition:color .12s, border-color .12s;
+  }
+  .section-nav a:hover{color:var(--ink);}
+  .section-nav a.active{color:var(--teal-dark);border-bottom-color:var(--teal);font-weight:600;}
+
+  .back-to-top{
+    position:fixed;right:20px;bottom:20px;z-index:30;
+    width:40px;height:40px;border-radius:50%;
+    background:var(--teal-dark);color:#fff;border:none;cursor:pointer;
+    font-size:16px;line-height:1;box-shadow:0 2px 8px rgba(19,69,72,0.35);
+    opacity:0;pointer-events:none;transition:opacity .15s, transform .15s;
+    transform:translateY(6px);
+  }
+  .back-to-top.visible{opacity:1;pointer-events:auto;transform:translateY(0);}
+  .back-to-top:hover{background:var(--teal);}
+
+  select:focus-visible, button:focus-visible, input:focus-visible, a:focus-visible{
+    outline:2px solid var(--teal);outline-offset:2px;
+  }
+  select, .predict-run-btn, .wh-mode-btn{transition:border-color .12s, background .12s;}
+  select:hover{border-color:var(--teal);}
+
+  .kpi{transition:transform .12s, box-shadow .12s;}
+  .kpi:hover{transform:translateY(-2px);box-shadow:0 4px 10px rgba(21,37,36,0.08);}
+
+  .subj-table tbody tr{transition:background .1s;}
+  .subj-table tbody tr:hover{background:#F0F5F4;}
+
   .section-head{
     display:flex;
     align-items:baseline;
@@ -303,6 +346,22 @@
     </div>
   </div>
 </header>
+
+<nav class="section-nav">
+  <div class="wrap section-nav-inner">
+    <a href="#sec-clarity" data-sec="sec-clarity">1 · Quality</a>
+    <a href="#sec-ecd" data-sec="sec-ecd">2 · ECD</a>
+    <a href="#sec-visit" data-sec="sec-visit">3 · Visit rate</a>
+    <a href="#sec-subject" data-sec="sec-subject">4 · Subjects</a>
+    <a href="#sec-regional" data-sec="sec-regional">5 · Regional</a>
+    <a href="#sec-wheel" data-sec="sec-wheel">6 · Wheel</a>
+    <a href="#sec-wheel-compare" data-sec="sec-wheel-compare">7 · Compare</a>
+    <a href="#sec-qa" data-sec="sec-qa">8 · QA</a>
+    <a href="#sec-predict" data-sec="sec-predict">9 · Predict</a>
+  </div>
+</nav>
+
+<button type="button" class="back-to-top" id="back-to-top" title="Back to top" aria-label="Back to top">↑</button>
 
 <div class="wrap">
 
@@ -1333,6 +1392,25 @@ rmPopulateSubjects();
 whRenderLegend();
 whPopulateSubjects();
 cwPopulateSubjects();
+
+/* ---------------- NAV / SCROLL POLISH ---------------- */
+const backToTopBtn = document.getElementById('back-to-top');
+window.addEventListener('scroll', () => {
+  backToTopBtn.classList.toggle('visible', window.scrollY > 600);
+}, {passive:true});
+backToTopBtn.addEventListener('click', () => window.scrollTo({top:0, behavior:'smooth'}));
+
+const navLinks = [...document.querySelectorAll('.section-nav a')];
+const navSections = navLinks.map(a => document.getElementById(a.dataset.sec)).filter(Boolean);
+if('IntersectionObserver' in window && navSections.length){
+  const setActive = id => navLinks.forEach(a => a.classList.toggle('active', a.dataset.sec===id));
+  const observer = new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting) setActive(entry.target.id);
+    });
+  }, {rootMargin:'-80px 0px -70% 0px', threshold:0});
+  navSections.forEach(sec => observer.observe(sec));
+}
 </script>
 
 </body>
