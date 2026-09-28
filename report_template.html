@@ -213,7 +213,7 @@
   .wheel-row svg{flex:none;}
   .wheel-row path, .wheel-row circle.wh-seg{cursor:pointer;transition:opacity .1s;}
   .wheel-row path:hover, .wheel-row circle.wh-seg:hover{opacity:0.82;}
-  .wheel-preview{width:150px;flex:none;}
+  .wheel-preview{width:190px;flex:none;}
   .wheel-preview-title{font-family:'Source Serif 4',serif;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:6px;text-align:center;}
   .wheel-preview-box{
     border:1px solid var(--line);border-radius:8px;padding:14px;min-height:140px;
@@ -223,6 +223,7 @@
   .wheel-preview-box .wp-loc{font-family:'Source Serif 4',serif;font-size:22px;font-weight:600;color:var(--ink);}
   .wheel-preview-box .wp-tag{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:4px;}
   .wheel-preview-box .wp-ecd{font-size:15px;font-weight:600;margin-top:6px;}
+  .wheel-preview-box .wp-thumb{max-width:100%;max-height:150px;border-radius:6px;border:1px solid var(--line);margin-bottom:8px;object-fit:cover;}
   .wheel-ring-caption{display:flex;flex-direction:column;gap:4px;margin-top:10px;font-size:11px;color:var(--ink-soft);}
   .wheel-ring-caption span{display:inline-flex;align-items:center;gap:6px;}
   .wheel-ring-caption i{width:10px;height:10px;border-radius:3px;display:inline-block;}
@@ -365,7 +366,7 @@
     <div class="section-head">
       <h2>6 · Per-Location ECD Wheel</h2>
     </div>
-    <p class="desc">Same 15-location screening result as a single-visit wheel, styled after the original ECD threshold selector: outer ring = 6 peripheral locations, inner ring = 8 paracentral locations, centre = the 1 central location — each ring now labelled by zone, matching the region diagram. ECD values are shown on every segment; click one to also highlight it in the preview panel. There's no real thumbnail in this dataset, so the preview shows the location's data instead of an image.</p>
+    <p class="desc">Same 15-location screening result as a single-visit wheel, styled after the original ECD threshold selector: outer ring = 6 peripheral locations, inner ring = 8 paracentral locations, centre = the 1 central location — each ring now labelled by zone, matching the region diagram. ECD values are shown on every segment; click one to also highlight it in the preview panel, which shows the captured image for that location alongside its data where one is available.</p>
 
     <div class="filters" style="margin-top:0;">
       <div><span class="flabel">Subject</span><select id="wh-subj"></select></div>
@@ -904,11 +905,16 @@ function whSelectLoc(loc, recMap){
     dyn==='pass' ? 'Pass — above threshold' : dyn==='fail' ? 'Fail — below threshold' :
     dyn==='excl' ? 'Poor quality / unreliable' : 'Eligible, ECD not available';
   const c = whWedgeColor(rec, dyn);
+  const thumbHtml = rec.img
+    ? `<img class="wp-thumb" src="images/${rec.subj}_${rec.eye}_${rec.visit}_${rec.loc}.jpg" alt="Location ${loc} capture" onerror="this.remove()">`
+    : '';
+  const noThumbNote = rec.img ? '' : '<div style="margin-top:6px;font-size:11px;color:var(--ink-soft);">No thumbnail available for this location.</div>';
   box.innerHTML = `
+    ${thumbHtml}
     <div class="wp-tag">Location ${loc} · ${whRegionLabel(loc)}</div>
     <div class="wp-loc" style="color:${c};">${rec.ecd!=null ? Math.round(rec.ecd) : '—'}</div>
     <div class="wp-ecd" style="color:${c};">${label}</div>
-    <div style="margin-top:6px;font-size:11px;color:var(--ink-soft);">No thumbnail available for this dataset.</div>`;
+    ${noThumbNote}`;
 }
 
 function whDrawWheel(recMap){

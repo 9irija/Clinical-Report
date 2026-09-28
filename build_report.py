@@ -20,8 +20,10 @@ from pathlib import Path
 
 import msoffcrypto
 import pandas as pd
+from PIL import Image
 
 DATA_PLACEHOLDER = "__REPORT_DATA_JSON__"
+THUMB_WIDTH = 260
 
 FILENAME_RE = re.compile(r"^(?P<subj>.+)_(?P<eye>[A-Za-z]+)_(?P<visit>[A-Za-z0-9]+)_(?P<loc>\d+)\.[A-Za-z0-9]+$")
 
@@ -69,7 +71,7 @@ def classify(grade, ecd, ecd_bin):
     return "pass" if ecd_bin == 1 else "fail"
 
 
-def build_records(iq_df: pd.DataFrame, ecd_df: pd.DataFrame):
+def build_records(iq_df: pd.DataFrame, ecd_df: pd.DataFrame, images_dir: "Path | None"):
     iq = iq_df[["Filename", "Predicted Multi-class Grade"]].rename(
         columns={"Predicted Multi-class Grade": "grade"}
     )
@@ -85,6 +87,7 @@ def build_records(iq_df: pd.DataFrame, ecd_df: pd.DataFrame):
         grade = nullable_int(row.grade)
         ecd_val = nullable_round(row.ecd)
         ecd_bin = nullable_int(row.bin)
+        has_image = bool(images_dir) and (images_dir / row.Filename).is_file()
         records.append(
             {
                 "f": row.Filename,
@@ -96,11 +99,34 @@ def build_records(iq_df: pd.DataFrame, ecd_df: pd.DataFrame):
                 "ecd": ecd_val,
                 "bin": ecd_bin,
                 "cat": classify(grade, ecd_val, ecd_bin),
+                "img": has_image,
             }
         )
 
     records.sort(key=lambda r: (r["subj"], r["eye"], r["visit"], r["loc"]))
     return records
+
+
+def thumb_name(filename: str) -> str:
+    return Path(filename).stem + ".jpg"
+
+
+def build_thumbnails(records, images_dir: Path, thumbs_dir: Path):
+    thumbs_dir.mkdir(parents=True, exist_ok=True)
+    written = 0
+    for rec in records:
+        if not rec["img"]:
+            continue
+        dest = thumbs_dir / thumb_name(rec["f"])
+        if dest.exists():
+            continue
+        with Image.open(images_dir / rec["f"]) as im:
+            im = im.convert("L") if im.mode in ("I", "I;16", "I;16B") else im.convert("RGB")
+            ratio = THUMB_WIDTH / im.width
+            im = im.resize((THUMB_WIDTH, max(1, round(im.height * ratio))), Image.LANCZOS)
+            im.save(dest, "JPEG", quality=78)
+        written += 1
+    return written
 
 
 def main():
@@ -111,12 +137,18 @@ def main():
     parser.add_argument("--ecd-password", default=None, help="Password for the ECD xlsx, if encrypted")
     parser.add_argument("--template", required=True, type=Path, help="Path to report_template.html")
     parser.add_argument("--out", required=True, type=Path, help="Path to write the generated report")
+    parser.add_argument(
+        "--images-dir",
+        default=None,
+        type=Path,
+        help="Folder of raw per-location images (matched by exact filename) to generate preview thumbnails from",
+    )
     args = parser.parse_args()
 
     iq_df = load_workbook(args.iq, args.iq_password)
     ecd_df = load_workbook(args.ecd, args.ecd_password)
 
-    records = build_records(iq_df, ecd_df)
+    records = build_records(iq_df, ecd_df, args.images_dir)
     data_json = json.dumps(records)
 
     template_html = args.template.read_text(encoding="utf-8")
@@ -128,6 +160,12 @@ def main():
     args.out.write_text(report_html, encoding="utf-8")
 
     print(f"Wrote {args.out} ({len(records)} image records)")
+
+    if args.images_dir:
+        thumbs_dir = args.out.parent / "images"
+        written = build_thumbnails(records, args.images_dir, thumbs_dir)
+        have_image = sum(1 for r in records if r["img"])
+        print(f"Wrote {written} new thumbnails to {thumbs_dir} ({have_image}/{len(records)} records have one)")
 
 
 if __name__ == "__main__":

@@ -5,3 +5,8 @@ __pycache__/
 
 # Claude Code local settings/artifacts
 .claude/
+
+# raw source images (multi-GB, not committed — only the resized thumbnails
+# generated into docs/images/ are tracked)
+images_raw/
+Images-*.zip
