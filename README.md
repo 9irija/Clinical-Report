@@ -4,6 +4,11 @@ Self-contained local pipeline: two AI-model-output xlsx exports (plus an
 optional folder of raw images) in, one static HTML dashboard out. No
 servers, no frameworks, no external API calls.
 
+> **See [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md) for the full history,
+> key decisions and why they were made, and what's planned next** — read
+> that first if you're picking this project up cold (including future
+> Claude sessions).
+
 ## What this is / what's been done
 
 This project turns the actual AI pipeline's predictions into the interactive
