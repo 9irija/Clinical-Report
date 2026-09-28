@@ -1042,10 +1042,8 @@ function whSelectLoc(loc, recMap){
     ? (rec.ecd!=null ? Math.round(rec.ecd) : '—')
     : (dyn==='pass'||dyn==='fail') ? (rec.aiconf!=null ? Math.round(rec.aiconf)+'%' : '—') : '—';
   const c = whWedgeColor(rec, dyn);
-  const srcCaption = {for_show1:'QC composite (original + outlines + mask)', masks1:'Segmentation mask only — no raw capture on file'}[rec.imgsrc] || '';
   const thumbHtml = rec.img
-    ? `<img class="wp-thumb" src="images/${rec.subj}_${rec.eye}_${rec.visit}_${rec.loc}.jpg" alt="Location ${loc} capture" onerror="this.remove()">
-       ${srcCaption ? `<div style="font-size:10px;color:var(--ink-soft);margin:-4px 0 6px;">${srcCaption}</div>` : ''}`
+    ? `<img class="wp-thumb" src="images/${rec.subj}_${rec.eye}_${rec.visit}_${rec.loc}.jpg" alt="Location ${loc} capture" onerror="this.remove()">`
     : '';
   const noThumbNote = rec.img ? '' : '<div style="margin-top:6px;font-size:11px;color:var(--ink-soft);">No thumbnail available for this location.</div>';
   box.innerHTML = `

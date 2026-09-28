@@ -32,17 +32,15 @@ DATA_PLACEHOLDER = "__REPORT_DATA_JSON__"
 THUMB_WIDTH = 260
 ECD_CUTOFF = 1000  # cells/mm^2 -- the boundary the Binary ECD AI model was trained on
 
-# Raw images arrive split across subfolders of --images-dir, in order of
-# preference: a real single-location capture, then a 3-panel QC composite
-# (original / predicted outlines / coloured masks). Coverage isn't 100% in
-# either folder, so each image is looked up across both and the best
-# available copy wins. A third subfolder, masks1, holds raw label masks
-# (pixel values are tiny integer cell IDs, e.g. 0-6, not intensities) --
-# deliberately excluded here since most locations have only a handful of
-# segmented cells, rendering as a near-blank image that looks broken rather
-# than informative. load_and_normalize() can still render one if a future
-# use case needs it.
-IMAGE_SUBDIR_PRIORITY = ["Images", "for_show1"]
+# Raw images arrive split across subfolders of --images-dir. Only Images/
+# (the real, single-location raw capture) is used -- for_show1/ (a 3-panel
+# QC composite: original + predicted outlines + coloured masks) and masks1/
+# (raw label masks) are deliberately excluded, even though using them would
+# raise thumbnail coverage: showing a composite/analysis image as if it were
+# a plain capture is misleading, not just lower-quality. A location with no
+# real capture on file simply shows no thumbnail. load_and_normalize()
+# still supports masks1's 16-bit normalization if a future use case needs it.
+IMAGE_SUBDIR_PRIORITY = ["Images"]
 
 FILENAME_RE = re.compile(r"^(?P<subj>.+)_(?P<eye>[A-Za-z]+)_(?P<visit>[A-Za-z0-9]+)_(?P<loc>\d+)\.[A-Za-z0-9]+$")
 
