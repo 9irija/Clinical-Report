@@ -144,7 +144,7 @@
   select:focus-visible, button:focus-visible, input:focus-visible, a:focus-visible{
     outline:2px solid var(--teal);outline-offset:2px;
   }
-  select, .predict-run-btn, .wh-mode-btn{transition:border-color .12s, background .12s;}
+  select, .predict-run-btn{transition:border-color .12s, background .12s;}
   select:hover{border-color:var(--teal);}
 
   .kpi{transition:transform .12s, box-shadow .12s;}
@@ -309,22 +309,21 @@
   .wheel-ring-caption span{display:inline-flex;align-items:center;gap:6px;}
   .wheel-ring-caption i{width:10px;height:10px;border-radius:3px;display:inline-block;}
 
-  .wh-mode-toggle{display:flex;gap:8px;margin-bottom:16px;}
-  .wh-mode-btn{
-    font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;padding:7px 13px;border-radius:20px;
-    border:1px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;transition:all .12s;
-  }
-  .wh-mode-btn.active{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:600;}
-  .wh-mode-btn:hover:not(.active){border-color:var(--teal);color:var(--teal);}
 
   .wh-scale-bar{display:flex;gap:8px;align-items:stretch;height:220px;flex:none;}
   .wh-scale-track{position:relative;width:18px;}
   .wh-scale-gradient{
     width:18px;height:100%;border-radius:5px;border:1px solid var(--line);
-    background:linear-gradient(to top, #D9765D 0%, #D9A96F 50%, #6FA98A 100%);
+    background:linear-gradient(to top,
+      #E03C31 0%, #E03C31 33.33%,
+      #F2994A 33.33%, #F2994A 50%,
+      #F2C94C 50%, #F2C94C 66.67%,
+      #4A90E2 66.67%, #4A90E2 83.33%,
+      #6FCF67 83.33%, #6FCF67 100%);
   }
   .wh-scale-tick{position:absolute;left:-4px;right:-4px;height:2px;background:#134548;}
-  .wh-scale-labels{display:flex;flex-direction:column;justify-content:space-between;font-size:10.5px;color:var(--ink-soft);padding:1px 0;}
+  .wh-scale-labels{position:relative;width:32px;font-size:10px;color:var(--ink-soft);}
+  .wh-scale-labels span{position:absolute;left:0;transform:translateY(-50%);white-space:nowrap;}
 
   footer{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-soft);}
 
@@ -354,10 +353,11 @@
     <a href="#sec-visit" data-sec="sec-visit">3 · Visit rate</a>
     <a href="#sec-subject" data-sec="sec-subject">4 · Subjects</a>
     <a href="#sec-regional" data-sec="sec-regional">5 · Regional</a>
-    <a href="#sec-wheel" data-sec="sec-wheel">6 · Wheel</a>
-    <a href="#sec-wheel-compare" data-sec="sec-wheel-compare">7 · Compare</a>
-    <a href="#sec-qa" data-sec="sec-qa">8 · QA</a>
-    <a href="#sec-predict" data-sec="sec-predict">9 · Predict</a>
+    <a href="#sec-wheel" data-sec="sec-wheel">6 · AI Wheel</a>
+    <a href="#sec-wheel-values" data-sec="sec-wheel-values">7 · ECD Wheel</a>
+    <a href="#sec-wheel-compare" data-sec="sec-wheel-compare">8 · Compare</a>
+    <a href="#sec-qa" data-sec="sec-qa">9 · QA</a>
+    <a href="#sec-predict" data-sec="sec-predict">10 · Predict</a>
   </div>
 </nav>
 
@@ -457,22 +457,17 @@
     </div>
   </section>
 
-  <!-- PER-LOCATION ECD WHEEL -->
+  <!-- AI IQ AND ECD SCREENING COLOR MAPS -->
   <section id="sec-wheel">
     <div class="section-head">
-      <h2>6 · Per-Location ECD Wheel</h2>
+      <h2>6 · AI IQ and ECD Screening Color Maps</h2>
     </div>
-    <p class="desc">Same 15-location screening result as a single-visit wheel: outer ring = 6 peripheral locations, inner ring = 8 paracentral locations, centre = the 1 central location. Two views: <b>AI prediction</b> shows the Binary ECD AI model's own Acceptable/Low decision and confidence — not based on computed ECD from segmented cells; <b>ECD value</b> shows the real, segmented-cell ECD on a colour scale. Click a segment to also highlight it in the preview panel, which shows the captured image for that location where one is available.</p>
+    <p class="desc">The 15-location screening result as a single-visit wheel: outer ring = 6 peripheral locations, inner ring = 8 paracentral locations, centre = the 1 central location. Colour is the Binary ECD AI model's own Acceptable/Low decision (after the Binary Image Quality AI model's gate) — not based on computed ECD from segmented cells. Click a segment to highlight it in the preview panel, which shows the captured image and the model's confidence for that location where available.</p>
 
     <div class="filters" style="margin-top:0;">
       <div><span class="flabel">Subject</span><select id="wh-subj"></select></div>
       <div><span class="flabel">Eye</span><select id="wh-eye"></select></div>
       <div><span class="flabel">Visit</span><select id="wh-visit"></select></div>
-    </div>
-
-    <div class="wh-mode-toggle">
-      <button type="button" class="wh-mode-btn active" data-mode="threshold" onclick="whSetMode('threshold')">AI prediction (Binary ECD model)</button>
-      <button type="button" class="wh-mode-btn" data-mode="gradient" onclick="whSetMode('gradient')">ECD value (colour scale)</button>
     </div>
 
     <div class="wheel-row">
@@ -484,15 +479,6 @@
           <span><i style="background:#E4EEF4;border:1px solid #8FB6D6;"></i>Centre — Central</span>
         </div>
       </div>
-      <div class="wh-scale-bar" id="wh-scale-bar" style="display:none;">
-        <div class="wh-scale-track">
-          <div class="wh-scale-gradient"></div>
-          <div class="wh-scale-tick" id="wh-scale-tick"></div>
-        </div>
-        <div class="wh-scale-labels">
-          <span>3000</span><span>2000</span><span>1000</span><span>0</span>
-        </div>
-      </div>
       <div class="wheel-preview">
         <div class="wheel-preview-title">Preview</div>
         <div class="wheel-preview-box" id="wheel-preview-box">Click a segment to inspect it</div>
@@ -501,12 +487,54 @@
     </div>
   </section>
 
-  <!-- VISIT COMPARISON WHEEL -->
+  <!-- ECD VALUES COLOR MAP -->
+  <section id="sec-wheel-values">
+    <div class="section-head">
+      <h2>7 · ECD Values Color Map</h2>
+    </div>
+    <p class="desc">Same 15-location single-visit wheel as Section 6, but always coloured by the real, segmented-cell ECD value on the 0–3000 scale shown — never the AI prediction. Click a segment to see its captured image and exact ECD value in the preview panel.</p>
+
+    <div class="filters" style="margin-top:0;">
+      <div><span class="flabel">Subject</span><select id="whv-subj"></select></div>
+      <div><span class="flabel">Eye</span><select id="whv-eye"></select></div>
+      <div><span class="flabel">Visit</span><select id="whv-visit"></select></div>
+    </div>
+
+    <div class="wheel-row">
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <svg id="whv-wheel-svg" width="300" height="300" viewBox="0 0 300 300"></svg>
+        <div class="wheel-ring-caption">
+          <span><i style="background:#EAF3EC;border:1px solid #BFD8A8;"></i>Outer ring — Peripheral</span>
+          <span><i style="background:#FBE7E2;border:1px solid #E2A38F;"></i>Inner ring — Paracentral</span>
+          <span><i style="background:#E4EEF4;border:1px solid #8FB6D6;"></i>Centre — Central</span>
+        </div>
+      </div>
+      <div class="wh-scale-bar" style="display:flex;">
+        <div class="wh-scale-track">
+          <div class="wh-scale-gradient"></div>
+        </div>
+        <div class="wh-scale-labels">
+          <span style="top:0%;">3000</span>
+          <span style="top:16.67%;">2500</span>
+          <span style="top:33.33%;">2000</span>
+          <span style="top:50%;">1500</span>
+          <span style="top:66.67%;">1000</span>
+          <span style="top:100%;">0</span>
+        </div>
+      </div>
+      <div class="wheel-preview">
+        <div class="wheel-preview-title">Preview</div>
+        <div class="wheel-preview-box" id="whv-preview-box">Click a segment to inspect it</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COLOR MAPS OF ECD VALUES OVER LONGITUDINAL VISITS -->
   <section id="sec-wheel-compare">
     <div class="section-head">
-      <h2>7 · Visit Comparison Wheel — Real ECD</h2>
+      <h2>8 · Color Maps of ECD Values over Longitudinal Visits</h2>
     </div>
-    <p class="desc">The same 15-location wheel as Section 6, shown for two visits side by side — always coloured by the real, segmented-cell ECD value (0–3000 scale), never the AI prediction, so a genuine change between visits is visible at a glance. Locations with a meaningful decline (≥100 cells/mm²) from the 1st to the 2nd visit are called out below.</p>
+    <p class="desc">The same wheel as Section 7, shown for two visits side by side — always coloured by the real, segmented-cell ECD value (0–3000 scale), so a genuine change between visits is visible at a glance. Locations with a meaningful decline (≥100 cells/mm²) from the 1st to the 2nd visit are called out below.</p>
 
     <div class="filters" style="margin-top:0;">
       <div><span class="flabel">Subject</span><select id="cw-subj"></select></div>
@@ -521,7 +549,7 @@
   <!-- QA -->
   <section id="sec-qa">
     <div class="section-head">
-      <h2>8 · Data Consistency Notes</h2>
+      <h2>9 · Data Consistency Notes</h2>
     </div>
     <p class="desc">The two source files were checked for cross-referencing consistency. These counts are informational — they don't block the report, but are worth resolving at the source.</p>
     <table class="qa" id="qa-table"></table>
@@ -530,7 +558,7 @@
   <!-- PREDICT NEW IMAGE (placeholder for future live-inference feature) -->
   <section id="sec-predict">
     <div class="section-head">
-      <h2>9 · Predict New Image <span class="coming-soon-badge">Coming soon</span></h2>
+      <h2>10 · Predict New Image <span class="coming-soon-badge">Coming soon</span></h2>
     </div>
     <p class="desc">This report is currently built from pre-computed spreadsheet exports. The plan is to let this page call the two AI models directly: upload a new specular microscopy image, run it through the Binary Image Quality model, and — if it passes — the Binary ECD model, then show the result alongside the rest of this dashboard. Nothing below is wired up yet; it's a placeholder for that integration so the layout exists ahead of time.</p>
 
@@ -963,8 +991,6 @@ const whSubjSel = document.getElementById('wh-subj');
 const whEyeSel = document.getElementById('wh-eye');
 const whVisitSel = document.getElementById('wh-visit');
 let wheelSelected = null;
-let wheelMode = 'threshold'; // 'threshold' | 'gradient'
-const WH_SCALE_MIN = 0, WH_SCALE_MAX = 3000; // cells/mm² — matches the clinical range convention
 
 function annularSectorPath(cx, cy, rOuter, rInner, startDeg, endDeg){
   const toRad = d => (d * Math.PI) / 180;
@@ -981,40 +1007,30 @@ function whColor(dyn){
   return dyn==='pass' ? COLORS.pass.fill : dyn==='fail' ? COLORS.fail.fill : dyn==='excl' ? COLORS.excl.fill : COLORS.miss.fill;
 }
 
-// red -> amber -> green continuous scale, for the "ECD value (colour scale)" view
-function whLerpColor(hex1, hex2, t){
-  const c1 = [1,3,5].map(i=>parseInt(hex1.substr(i,2),16));
-  const c2 = [1,3,5].map(i=>parseInt(hex2.substr(i,2),16));
-  const mix = c1.map((v,i)=>Math.round(v + (c2[i]-v)*t));
-  return '#' + mix.map(v=>v.toString(16).padStart(2,'0')).join('');
-}
+// Discrete 5-band ECD colour scale (matches the reference figure's legend):
+// red <1000, orange 1000-1500, yellow 1500-2000, blue 2000-2500, green >=2500.
+const ECD_BANDS = [
+  {max:1000, color:'#E03C31'},
+  {max:1500, color:'#F2994A'},
+  {max:2000, color:'#F2C94C'},
+  {max:2500, color:'#4A90E2'},
+  {max:Infinity, color:'#6FCF67'},
+];
 function ecdColorScale(v){
-  const t = Math.max(0, Math.min(1, (v - WH_SCALE_MIN) / (WH_SCALE_MAX - WH_SCALE_MIN)));
-  return t < 0.5 ? whLerpColor('#D9765D', '#D9A96F', t/0.5) : whLerpColor('#D9A96F', '#6FA98A', (t-0.5)/0.5);
+  return (ECD_BANDS.find(b => v < b.max) || ECD_BANDS[ECD_BANDS.length-1]).color;
 }
 function whWedgeColor(rec, dyn){
-  if(wheelMode==='gradient' && rec && rec.ecd!=null) return ecdColorScale(rec.ecd);
   return whColor(dyn);
 }
 function whTextColor(rec, dyn){
-  if(wheelMode==='gradient' && rec && rec.ecd!=null) return '#1B2A29';
   return dyn==='excl' ? '#ffffff' : '#3A4746';
 }
 
-// "AI prediction" mode wedges are colour-only (no number/percentage on the
-// wheel itself), matching the reference design — the click-through preview
-// panel still shows the model's confidence for whichever segment is selected.
+// Wedges are colour-only (no number/percentage on the wheel itself),
+// matching the reference design — the click-through preview panel still
+// shows the model's confidence for whichever segment is selected.
 function whWedgeLabel(rec, dyn){
-  if(wheelMode==='gradient') return rec.ecd!=null ? Math.round(rec.ecd) : (dyn==='excl' ? 'excl' : 'n/a');
   return '';
-}
-
-function whSetMode(mode){
-  wheelMode = mode;
-  document.querySelectorAll('.wh-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode===mode));
-  document.getElementById('wh-scale-bar').style.display = mode==='gradient' ? 'flex' : 'none';
-  whRenderLegend();
-  whRender();
 }
 
 function whRegionLabel(loc){
@@ -1032,15 +1048,11 @@ function whSelectLoc(loc, recMap){
     return;
   }
   const dyn = rmDyn(rec);
-  const label = wheelMode==='gradient'
-    ? (rec.ecd!=null ? `${Math.round(rec.ecd)} cells/mm² (segmented-cell ECD)` : 'No segmented-cell ECD on file')
-    : dyn==='pass' ? `AI: Acceptable ECD${rec.aiconf!=null? ' · '+Math.round(rec.aiconf)+'% confidence':''}`
+  const label = dyn==='pass' ? `AI: Acceptable ECD${rec.aiconf!=null? ' · '+Math.round(rec.aiconf)+'% confidence':''}`
     : dyn==='fail' ? `AI: Low ECD${rec.aiconf!=null? ' · '+Math.round(rec.aiconf)+'% confidence':''}`
     : dyn==='excl' ? `AI: poor image quality${rec.qconf!=null? ' · '+Math.round(rec.qconf)+'% confidence':''}`
     : 'Good quality, no AI ECD result';
-  const bigNum = wheelMode==='gradient'
-    ? (rec.ecd!=null ? Math.round(rec.ecd) : '—')
-    : (dyn==='pass'||dyn==='fail') ? (rec.aiconf!=null ? Math.round(rec.aiconf)+'%' : '—') : '—';
+  const bigNum = (dyn==='pass'||dyn==='fail') ? (rec.aiconf!=null ? Math.round(rec.aiconf)+'%' : '—') : '—';
   const c = whWedgeColor(rec, dyn);
   const thumbHtml = rec.img
     ? `<img class="wp-thumb" src="images/${rec.subj}_${rec.eye}_${rec.visit}_${rec.loc}.jpg" alt="Location ${loc} capture" onerror="this.remove()">`
@@ -1107,14 +1119,6 @@ function whDrawWheel(recMap){
   document.getElementById('wheel-svg').innerHTML = svg;
 }
 
-function whUpdateScaleTick(){
-  const tick = document.getElementById('wh-scale-tick');
-  if(!tick) return;
-  const t = Math.max(0, Math.min(1, (ECD_CUTOFF - WH_SCALE_MIN) / (WH_SCALE_MAX - WH_SCALE_MIN)));
-  tick.style.bottom = `calc(${t*100}% - 1px)`;
-  tick.title = `Clinical cutoff: ${ECD_CUTOFF} cells/mm²`;
-}
-
 function whHandleClick(loc){
   const subj = whSubjSel.value, eye = whEyeSel.value, visit = whVisitSel.value;
   const recMap = rmLocRecords(subj, eye, visit);
@@ -1124,14 +1128,6 @@ function whHandleClick(loc){
 
 function whRenderLegend(){
   const el = document.getElementById('wheel-legend');
-  if(wheelMode==='gradient'){
-    el.innerHTML = `
-      <span style="font-weight:600;color:var(--ink);">Colour = real ECD value (0\u20133000)</span>
-      <span>Dark tick on the bar = 1000 cells/mm\u00b2 clinical cutoff</span>
-      <span><i style="background:${COLORS.excl.fill};"></i>${COLORS.excl.label}</span>
-      <span><i style="background:${COLORS.miss.fill};"></i>${COLORS.miss.label}</span>`;
-    return;
-  }
   el.innerHTML = `
     <span><i style="background:${COLORS.pass.fill};"></i>${COLORS.pass.label}</span>
     <span><i style="background:${COLORS.fail.fill};"></i>${COLORS.fail.label}</span>
@@ -1141,7 +1137,6 @@ function whRenderLegend(){
 
 function whRender(){
   const subj = whSubjSel.value, eye = whEyeSel.value, visit = whVisitSel.value;
-  whUpdateScaleTick();
   if(!subj || !eye || !visit){
     document.getElementById('wheel-svg').innerHTML = '';
     return;
@@ -1201,9 +1196,137 @@ whSubjSel.addEventListener('change', whPopulateEyes);
 whEyeSel.addEventListener('change', whPopulateVisits);
 whVisitSel.addEventListener('change', whRender);
 
-/* ---------------- VISIT COMPARISON WHEEL (Section 7) ---------------- */
+/* ---------------- ECD VALUES COLOR MAP (Section 7) ---------------- */
+// Independent single-visit wheel, always coloured by the real, segmented-cell
+// ECD value -- shares the drawing primitives with Section 6 but keeps its
+// own selection state so the two sections don't interfere with each other.
+const whvSubjSel = document.getElementById('whv-subj');
+const whvEyeSel = document.getElementById('whv-eye');
+const whvVisitSel = document.getElementById('whv-visit');
+let whvSelected = null;
+
+function whvWedgeColor(rec){
+  return rec.ecd!=null ? ecdColorScale(rec.ecd) : COLORS.miss.fill;
+}
+
+function whvSelectLoc(loc, recMap){
+  whvSelected = loc;
+  const box = document.getElementById('whv-preview-box');
+  const rec = recMap[loc];
+  if(!rec){
+    box.innerHTML = `<div class="wp-tag">Location ${loc} · ${whRegionLabel(loc)}</div><div style="margin-top:6px;">No image captured at this location for this visit.</div>`;
+    return;
+  }
+  const c = whvWedgeColor(rec);
+  const bigNum = rec.ecd!=null ? Math.round(rec.ecd) : '—';
+  const label = rec.ecd!=null ? `${Math.round(rec.ecd)} cells/mm² (segmented-cell ECD)` : 'No segmented-cell ECD on file';
+  const thumbHtml = rec.img
+    ? `<img class="wp-thumb" src="images/${rec.subj}_${rec.eye}_${rec.visit}_${rec.loc}.jpg" alt="Location ${loc} capture" onerror="this.remove()">`
+    : '';
+  const noThumbNote = rec.img ? '' : '<div style="margin-top:6px;font-size:11px;color:var(--ink-soft);">No thumbnail available for this location.</div>';
+  box.innerHTML = `
+    ${thumbHtml}
+    <div class="wp-tag">Location ${loc} · ${whRegionLabel(loc)}</div>
+    <div class="wp-loc" style="color:${c};">${bigNum}</div>
+    <div class="wp-ecd" style="color:${c};">${label}</div>
+    ${noThumbNote}`;
+}
+
+function whvDrawWheel(recMap){
+  const cx=150, cy=150;
+  const rOuterMax=140, rOuterMin=96, rInnerMax=90, rInnerMin=42, rCentre=38;
+  const toRad = d => (d * Math.PI) / 180;
+  const wedgeLabelPos = (rOuter, rInner, midDeg) => {
+    const rMid = (rOuter+rInner)/2, a = toRad(midDeg);
+    return [cx + rMid*Math.cos(a), cy + rMid*Math.sin(a)];
+  };
+  let svg = '';
+  OUTER_RING_LOCS.forEach((loc,i)=>{
+    const start = -90 + i*60, end = start+60;
+    const rec = recMap[loc];
+    if(!rec) return;
+    const sel = whvSelected===loc ? 'stroke="#134548" stroke-width="2.5"' : 'stroke="#ffffff" stroke-width="2"';
+    svg += `<path d="${annularSectorPath(cx,cy,rOuterMax,rOuterMin,start,end)}" fill="${whvWedgeColor(rec)}" ${sel} data-loc="${loc}" onclick="whvHandleClick(${loc})"/>`;
+    const [lx,ly] = wedgeLabelPos(rOuterMax, rOuterMin, (start+end)/2);
+    svg += `<text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="12" font-family="IBM Plex Sans, sans-serif" fill="#1B2A29" font-weight="600" pointer-events="none">${rec.ecd!=null ? Math.round(rec.ecd) : 'n/a'}</text>`;
+  });
+  INNER_RING_LOCS.forEach((loc,i)=>{
+    const start = -90 + i*45, end = start+45;
+    const rec = recMap[loc];
+    if(!rec) return;
+    const sel = whvSelected===loc ? 'stroke="#134548" stroke-width="2.5"' : 'stroke="#ffffff" stroke-width="2"';
+    svg += `<path d="${annularSectorPath(cx,cy,rInnerMax,rInnerMin,start,end)}" fill="${whvWedgeColor(rec)}" ${sel} data-loc="${loc}" onclick="whvHandleClick(${loc})"/>`;
+    const [lx,ly] = wedgeLabelPos(rInnerMax, rInnerMin, (start+end)/2);
+    svg += `<text x="${lx}" y="${ly+3}" text-anchor="middle" font-size="10" font-family="IBM Plex Sans, sans-serif" fill="#1B2A29" font-weight="600" pointer-events="none">${rec.ecd!=null ? Math.round(rec.ecd) : 'n/a'}</text>`;
+  });
+  const centreRec = recMap[1];
+  if(centreRec){
+    const sel = whvSelected===1 ? '#134548' : '#ffffff';
+    const selW = whvSelected===1 ? 2.5 : 2;
+    svg += `<circle class="wh-seg" cx="${cx}" cy="${cy}" r="${rCentre}" fill="${whvWedgeColor(centreRec)}" stroke="${sel}" stroke-width="${selW}" data-loc="1" onclick="whvHandleClick(1)"/>`;
+    svg += `<text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="12" font-family="IBM Plex Sans, sans-serif" fill="#1B2A29" font-weight="600" pointer-events="none">${centreRec.ecd!=null ? Math.round(centreRec.ecd) : 'n/a'}</text>`;
+  }
+  document.getElementById('whv-wheel-svg').innerHTML = svg;
+}
+
+function whvHandleClick(loc){
+  const subj = whvSubjSel.value, eye = whvEyeSel.value, visit = whvVisitSel.value;
+  const recMap = rmLocRecords(subj, eye, visit);
+  whvSelectLoc(loc, recMap);
+  whvDrawWheel(recMap);
+}
+
+function whvRender(){
+  const subj = whvSubjSel.value, eye = whvEyeSel.value, visit = whvVisitSel.value;
+  if(!subj || !eye || !visit){
+    document.getElementById('whv-wheel-svg').innerHTML = '';
+    return;
+  }
+  const recMap = rmLocRecords(subj, eye, visit);
+  whvSelected = null;
+  whvDrawWheel(recMap);
+  document.getElementById('whv-preview-box').innerHTML = 'Click a segment to inspect it';
+}
+
+function whvPopulateVisits(){
+  const subj = whvSubjSel.value, eye = whvEyeSel.value;
+  const visits = VISIT_ORDER.filter(v => RAW.some(r=>r.subj===subj && r.eye===eye && r.visit===v && r.loc!=null));
+  populateSelect(whvVisitSel, visits, '—');
+  whvVisitSel.querySelector('option[value="__ALL__"]').remove();
+  if(visits.length){
+    whvVisitSel.value = bestByImageCount(visits, v =>
+      RAW.filter(r=>r.subj===subj && r.eye===eye && r.visit===v && r.img).length);
+  }
+  whvRender();
+}
+function whvPopulateEyes(){
+  const subj = whvSubjSel.value;
+  const eyes = uniqueSorted(RAW.filter(r=>r.subj===subj && r.loc!=null).map(r=>r.eye));
+  populateSelect(whvEyeSel, eyes, '');
+  whvEyeSel.querySelector('option[value="__ALL__"]').remove();
+  if(eyes.length){
+    whvEyeSel.value = bestByImageCount(eyes, e =>
+      RAW.filter(r=>r.subj===subj && r.eye===e && r.img).length);
+  }
+  whvPopulateVisits();
+}
+function whvPopulateSubjects(){
+  const subjs = uniqueSorted(RAW.filter(r=>r.loc!=null).map(r=>r.subj));
+  populateSelect(whvSubjSel, subjs, '');
+  whvSubjSel.querySelector('option[value="__ALL__"]').remove();
+  if(subjs.length){
+    whvSubjSel.value = bestByImageCount(subjs, s =>
+      RAW.filter(r=>r.subj===s && r.img).length);
+  }
+  whvPopulateEyes();
+}
+whvSubjSel.addEventListener('change', whvPopulateEyes);
+whvEyeSel.addEventListener('change', whvPopulateVisits);
+whvVisitSel.addEventListener('change', whvRender);
+
+/* ---------------- COLOR MAPS OF ECD VALUES OVER LONGITUDINAL VISITS (Section 8) ---------------- */
 // Always coloured by the real, segmented-cell ECD value -- never the AI
-// prediction -- so this view is independent of wheelMode/whWedgeColor.
+// prediction -- independent of Section 6/7's own selection state.
 const cwSubjSel = document.getElementById('cw-subj');
 const cwEyeSel = document.getElementById('cw-eye');
 const cwVisitASel = document.getElementById('cw-visitA');
@@ -1295,7 +1418,14 @@ function cwRender(){
     </div>
     <div class="wh-scale-bar" style="display:flex;margin:14px auto 0;">
       <div class="wh-scale-track"><div class="wh-scale-gradient"></div></div>
-      <div class="wh-scale-labels"><span>3000</span><span>2000</span><span>1000</span><span>0</span></div>
+      <div class="wh-scale-labels">
+        <span style="top:0%;">3000</span>
+        <span style="top:16.67%;">2500</span>
+        <span style="top:33.33%;">2000</span>
+        <span style="top:50%;">1500</span>
+        <span style="top:66.67%;">1000</span>
+        <span style="top:100%;">0</span>
+      </div>
     </div>
     <div style="margin-top:14px;font-size:13.5px;text-align:center;">${cwReductionText(recA, recB)}</div>`;
 }
@@ -1388,6 +1518,7 @@ renderAll();
 rmPopulateSubjects();
 whRenderLegend();
 whPopulateSubjects();
+whvPopulateSubjects();
 cwPopulateSubjects();
 
 /* ---------------- NAV / SCROLL POLISH ---------------- */
