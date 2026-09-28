@@ -569,9 +569,9 @@ const RAW = JSON.parse(document.getElementById('report-data').textContent);
 
 const VISIT_ORDER = ['B','M1','M3','M6','M12','M18','M24'];
 const COLORS = {
-  pass: {fill:'#6FA98A', light:'#E4F0E9', label:'AI: Acceptable ECD (≥1000)'},
-  fail: {fill:'#D9765D', light:'#F7E5DF', label:'AI: Low ECD (<1000)'},
-  excl: {fill:'#93A3A2', light:'#E7EBEA', label:'Excluded — AI: poor image quality'},
+  pass: {fill:'#B7D7A8', light:'#E4F0E9', label:'AI: Acceptable ECD (≥1000)'},
+  fail: {fill:'#EA9999', light:'#F7E5DF', label:'AI: Low ECD (<1000)'},
+  excl: {fill:'#4A4A4A', light:'#E7EBEA', label:'Excluded — AI: poor image quality'},
   miss: {fill:'#C7B98A', light:'#F3EEDD', label:'Good quality, no AI ECD result'},
 };
 
@@ -861,7 +861,7 @@ function rmEyeSVG(recMap, compareMap){
     const w=36, h=62;
     shapes += `<rect x="${slot.x-w/2}" y="${slot.y-h/2}" width="${w}" height="${h}" rx="4" fill="${c}" stroke="#ffffffAA" stroke-width="1"/>`;
     const label = rec.ecd!=null ? Math.round(rec.ecd) : (dyn==='excl' ? 'excl' : 'n/a');
-    const textColor = (dyn==='pass'||dyn==='fail') ? '#ffffff' : '#3A4746';
+    const textColor = dyn==='excl' ? '#ffffff' : '#3A4746';
     shapes += `<text x="${slot.x}" y="${slot.y+4}" text-anchor="middle" font-size="11.5" font-family="IBM Plex Sans, sans-serif" fill="${textColor}" font-weight="600">${label}</text>`;
 
     // change arrow vs. the comparison visit, if both have a numeric ECD value
@@ -998,16 +998,15 @@ function whWedgeColor(rec, dyn){
 }
 function whTextColor(rec, dyn){
   if(wheelMode==='gradient' && rec && rec.ecd!=null) return '#1B2A29';
-  return (dyn==='pass'||dyn==='fail') ? '#ffffff' : '#3A4746';
+  return dyn==='excl' ? '#ffffff' : '#3A4746';
 }
 
-// In "AI prediction" mode, wedges show the Binary ECD AI model's own confidence, never the real
-// ECD number — showing that number here would wrongly imply the colour was derived from it.
+// "AI prediction" mode wedges are colour-only (no number/percentage on the
+// wheel itself), matching the reference design — the click-through preview
+// panel still shows the model's confidence for whichever segment is selected.
 function whWedgeLabel(rec, dyn){
   if(wheelMode==='gradient') return rec.ecd!=null ? Math.round(rec.ecd) : (dyn==='excl' ? 'excl' : 'n/a');
-  if(dyn==='excl') return 'excl';
-  if(dyn==='miss') return 'n/a';
-  return rec.aiconf!=null ? Math.round(rec.aiconf)+'%' : 'n/a';
+  return '';
 }
 
 function whSetMode(mode){
