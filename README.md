@@ -1,66 +1,73 @@
 # URECA Project — ECD / Image-Quality Specular Microscopy Report
 
-Self-contained local pipeline: two xlsx exports in, one static HTML dashboard
-out. No servers, no frameworks, no external API calls.
+Self-contained local pipeline: two AI-model-output xlsx exports (plus an
+optional folder of raw images) in, one static HTML dashboard out. No
+servers, no frameworks, no external API calls.
 
 ## What this is / what's been done
 
-This project turns two clinical-trial spreadsheet exports (an image-quality
-grade file and an ECD-value file) into the interactive HTML dashboard you
-originally had as a single hand-built file
-(`ECD_Image_Quality_Report (3).html`). That original file was a one-off —
-the data was baked into it and there was no way to regenerate it from new
-spreadsheets without redoing the work.
+This project turns the actual AI pipeline's predictions into the interactive
+HTML dashboard you originally had as a single hand-built file
+(`ECD_Image_Quality_Report (3).html`). The real pipeline is:
 
-What changed: the dashboard's markup/CSS/charting JS was extracted into a
-reusable **template** (`report_template.html`) with one placeholder where
-data goes, and a **build script** (`build_report.py`) was written that reads
-the two xlsx files, merges and classifies every image, and drops the result
-into that placeholder to produce a fresh `output/report.html`. The pipeline
-was verified to reproduce the original report exactly (1973 image records,
-0 mismatches) before anything else was built on top of it.
+```
+Specular microscopy image
+  → Binary Image Quality AI model → Good / Bad
+        Bad  → excluded / manual review
+        Good → Binary ECD AI model → Acceptable ECD (≥1000 cells/mm²) / Low ECD (<1000)
+```
 
-In short: what used to be a static file is now a repeatable pipeline —
-drop in new xlsx exports, run one command, get an updated dashboard.
+The dashboard's markup/CSS/charting JS lives in a reusable **template**
+(`report_template.html`) with one placeholder where data goes, and a
+**build script** (`build_report.py`) reads the two source xlsx files,
+merges them by filename, classifies every image by the AI models' own
+predictions (never by re-thresholding a real ECD number), and drops the
+result into that placeholder to produce a fresh `docs/index.html`.
+
+**Important distinction kept throughout the report:** box/wedge *colour*
+(Pass / Fail / Excluded) always comes from the AI models' predictions.
+Any *number* shown (histograms, per-subject means, the Regional Map's
+per-location values, the wheel's "ECD value" view) is the real,
+segmented-cell ECD — the ground truth the AI is trying to predict, not the
+AI's own estimate. The two are never conflated: the "AI prediction" wheel
+view shows the model's confidence (%), not a fabricated ECD number.
 
 ## File-by-file
 
 | Path | What it is |
 |---|---|
 | `report_template.html` | The dashboard shell: all HTML/CSS and the chart/table JS logic. Contains one placeholder, `__REPORT_DATA_JSON__`, inside `<script id="report-data" type="application/json">`, where the real data gets substituted in. You never open this file directly to view a report — it has no data in it. |
-| `build_report.py` | The build script. Reads the IQ-grade xlsx and the ECD-value xlsx, decrypts either one if it's password-protected (via `msoffcrypto-tool`), merges them by filename, classifies every image (pass/fail/excluded/orphan — see below), and writes the filled-in HTML to whatever `--out` path you give it. |
-| `requirements.txt` | Python dependencies: `pandas` (spreadsheet parsing), `openpyxl` (xlsx engine), `msoffcrypto-tool` (decrypting password-protected xlsx files). |
-| `data/` | The two source xlsx files. Committed to this repo — see the hosting/privacy note below before treating that as the default for other projects. |
+| `build_report.py` | The build script. Reads the image-quality xlsx and the ECD xlsx, decrypts either one if it's password-protected (via `msoffcrypto-tool`), merges them by filename, classifies every image (see below), optionally generates preview thumbnails from a folder of raw images, and writes the filled-in HTML to whatever `--out` path you give it. |
+| `requirements.txt` | Python dependencies: `pandas`, `openpyxl` (xlsx engine), `msoffcrypto-tool` (decrypting password-protected xlsx files), `Pillow` (thumbnail generation). |
+| `data/` | The two source xlsx files (`predictions_ImageQuality.xlsx`, `Grade2Plus_BinaryECDPredictions_ECDValues.xlsx`). Committed to this repo — see the hosting/privacy note below before treating that as the default for other projects. |
 | `docs/index.html` | The generated dashboard, filled with the real data from `data/`. This is what GitHub Pages serves (GitHub Pages is configured to build from `main` / `/docs`). Regenerate it with the command below any time the source data changes. |
+| `docs/images/` | Resized (260px-wide JPEG) preview thumbnails, one per image that has a matching raw capture. Committed — this is what the wheel's click-to-preview panel loads. |
 | `output/` | Gitignored local scratch copy of the same generated report, used for quick local viewing without touching the tracked `docs/index.html` until you're ready to update the published copy. |
+| `images_raw/`, `Images-*.zip` | The raw, full-resolution source images (multi-GB) that thumbnails are generated from. **Gitignored** — never committed, only `docs/images/`'s small resized copies are. |
 | `ECD_Image_Quality_Report (3).html` | The original hand-built report you started with. Kept for reference/comparison; no longer needed day-to-day once you trust the pipeline. |
-| `.gitignore` | Excludes `output/`, `.venv/`, `.claude/`, and Python cache files from git. |
+| `.gitignore` | Excludes `output/`, `.venv/`, `.claude/`, `images_raw/`, the raw images zip, and Python cache files from git. |
 
 ## How it works
 
 1. **Read.** Each xlsx is loaded with `pandas`. If `msoffcrypto` detects the
    file is encrypted, it's decrypted in-memory first using the password you
-   pass on the command line (`--iq-password` / `--ecd-password`) — no
+   pass on the command line (`--quality-password` / `--ecd-password`) — no
    decrypted copy is ever written to disk.
 2. **Parse filenames.** Every row's `Filename` (e.g. `ROCKI-001_OD_M3_10.png`)
    is split into subject ID, eye, visit, and corneal location.
-3. **Merge.** The IQ-grade rows and ECD-value rows are outer-joined on
-   filename, so images that only appear in one file are kept (not silently
-   dropped).
-4. **Classify** each image into one category:
-   - only in the ECD file (no IQ grade) → `orphan_ecd_only`
-   - IQ grade is `0` (poor quality) → `excluded_poor_quality`
-   - IQ grade > 0 but missing from the ECD file → `excluded_missing_ecd`
-   - IQ grade > 0 and ECD present → `pass` if `Binary ECD` is `1`, else `fail`
-5. **Inject.** The classified records are serialized to JSON and substituted
+3. **Merge.** The quality-model rows (the full image universe) are
+   left-joined with the ECD rows (a subset — only images a human rated
+   grade≥2 got a segmented-cell ECD measurement) on filename.
+4. **Classify** each image using the AI models' own predictions only:
+   - `Predicted Label` (quality model) is `0` → `excluded_poor_quality`
+   - quality model says `Good` but there's no ECD-file row for it → `excluded_missing_ecd`
+   - quality model says `Good` and an ECD-file row exists → `pass` if `Predicted Label_ECDScreening` is `1`, else `fail`
+5. **Thumbnails** (optional, via `--images-dir`). For every record whose
+   filename matches a file in that folder, resize it to a 260px-wide JPEG
+   and drop it in `<out>/images/`.
+6. **Inject.** The classified records are serialized to JSON and substituted
    into `report_template.html` in place of `__REPORT_DATA_JSON__`, producing
-   a single self-contained HTML file — same charts, tables, and filters as
-   the original, now driven by whatever data you just fed in.
-
-The pipeline was verified against the original hand-built report before
-anything else was built on top of it: same 1973 image records, same category
-counts, 0 mismatches, and the surrounding HTML/CSS/JS byte-identical outside
-the data payload.
+   a single self-contained HTML file.
 
 ## One-time setup
 
@@ -76,33 +83,53 @@ pip install -r requirements.txt
 
 ## Regenerating the report
 
-To update the **published** dashboard (GitHub Pages serves this path):
+To update the **published** dashboard (GitHub Pages serves this path),
+including refreshing preview thumbnails from a local folder of raw images:
 
 ```
-python build_report.py --iq data/multiIQ_Grade.xlsx --ecd data/ECD_screening_ECDValue.xlsx \
-    --iq-password <password> --template report_template.html --out docs/index.html
+python build_report.py --quality data/predictions_ImageQuality.xlsx \
+    --ecd data/Grade2Plus_BinaryECDPredictions_ECDValues.xlsx \
+    --template report_template.html --out docs/index.html \
+    --images-dir images_raw/Images/Images
 ```
 
-To generate a local-only copy without touching the published one:
+Drop `--images-dir` entirely if you don't have the raw images locally —
+the report still works fine without thumbnails, it just shows data only.
 
-```
-python build_report.py --iq data/multiIQ_Grade.xlsx --ecd data/ECD_screening_ECDValue.xlsx \
-    --iq-password <password> --template report_template.html --out output/report.html
-```
+To generate a local-only copy without touching the published one, swap
+`--out` for `output/report.html` instead.
 
 Notes on the two source files:
-- **IQ grade file** (`--iq`) has columns `Filename`, `Predicted Multi-class
-  Grade`. On this dataset it is the password-protected one — pass its
-  password with `--iq-password`.
-- **ECD file** (`--ecd`) has columns `Filename`, `ECDValue`, `Binary ECD`. It
-  was not encrypted here, so `--ecd-password` is normally omitted — but the
-  flag exists and works the same way if a future export is protected instead.
+- **Quality file** (`--quality`) — `predictions_ImageQuality.xlsx` — has
+  columns `Filename`, `Predicted Label` (0=Bad, 1=Good), `Prob_Class_0`,
+  `Prob_Class_1`. This is the Binary Image Quality AI model's own output
+  for every captured image.
+- **ECD file** (`--ecd`) — `Grade2Plus_BinaryECDPredictions_ECDValues.xlsx`
+  — a master file keyed by `File Name`, with the real `ECD` (segmented-cell
+  measurement) alongside `Predicted Label_ECDScreening` (0=Low, 1=Acceptable)
+  and its own `Prob_Class_0`/`Prob_Class_1` — the Binary ECD AI model's
+  output. Only present for images a human grader rated ≥2.
+- Neither file was password-protected in this dataset, but `--quality-password`
+  / `--ecd-password` exist and work the same way if a future export is.
 - Filenames must follow `SubjectID_Eye_Visit_Location.ext` (e.g.
   `ROCKI-001_OD_M3_10.png`) — that's how each record is split into subject,
   eye, visit, and corneal location.
 
 Swap in new xlsx files under `data/` any time and re-run the same command —
 nothing else needs to change.
+
+## Getting the raw preview images
+
+The dashboard's click-to-preview thumbnails come from a raw capture folder
+that's too large to keep in the repo (~2GB zipped). To refresh them:
+1. Download the source images folder as a zip (e.g. from wherever your team
+   shares it) into the project root.
+2. Unzip it — this project expects the actual per-location captures at
+   `images_raw/Images/Images/<Filename>.png` (a folder of 3-panel QC
+   composites, `for_show1/`, and one of raw 16-bit segmentation masks,
+   `masks1/`, may also be present in the same archive — only `Images/Images`
+   is used).
+3. Re-run the regenerate command above with `--images-dir images_raw/Images/Images`.
 
 ## Viewing it
 
@@ -112,7 +139,9 @@ version of that file.
 
 **Locally:** just double-click `output/report.html` (or `docs/index.html`).
 Everything (styles, chart logic, and the data) is embedded in the one file
-with no external API calls, so it works straight off disk in any browser.
+with no external API calls, so it works straight off disk in any browser —
+thumbnails load from the `images/` folder that sits next to whichever HTML
+file you open, so keep them together if you copy the file elsewhere.
 
 If you'd rather serve it (e.g. to avoid any browser file:// quirks):
 
@@ -134,7 +163,7 @@ looks for that exact token and substitutes the merged data there.
 
 This repo is **public**, and `data/`, `docs/index.html`, and
 `ECD_Image_Quality_Report (3).html` all contain real per-subject clinical
-data (subject IDs, per-eye/visit ECD values and quality grades). That data
+data (subject IDs, per-eye/visit ECD values and AI predictions). That data
 is publicly visible to anyone with the repo/site link — this was a
 deliberate choice made when setting this up, not an oversight. If that
 changes, pull `data/` and the filled reports back out of git (keep only
