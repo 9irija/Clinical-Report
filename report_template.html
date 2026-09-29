@@ -309,6 +309,14 @@
   .wheel-ring-caption span{display:inline-flex;align-items:center;gap:6px;}
   .wheel-ring-caption i{width:10px;height:10px;border-radius:3px;display:inline-block;}
 
+  .mode-toggle{display:flex;gap:8px;margin-bottom:16px;}
+  .mode-btn{
+    font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;padding:7px 13px;border-radius:20px;
+    border:1px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;transition:all .12s;
+  }
+  .mode-btn.active{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:600;}
+  .mode-btn:hover:not(.active){border-color:var(--teal);color:var(--teal);}
+
 
   .wh-scale-bar{display:flex;gap:8px;align-items:stretch;height:220px;flex:none;}
   .wh-scale-track{position:relative;width:18px;}
@@ -534,13 +542,20 @@
     <div class="section-head">
       <h2>8 · Color Maps of ECD Values over Longitudinal Visits</h2>
     </div>
-    <p class="desc">The same wheel as Section 7, shown for two visits side by side — always coloured by the real, segmented-cell ECD value (0–3000 scale), so a genuine change between visits is visible at a glance. Locations with a meaningful decline (≥100 cells/mm²) from the 1st to the 2nd visit are called out below.</p>
+    <p class="desc">The same wheel as Section 7, shown across visits side by side — always coloured by the real, segmented-cell ECD value (0–3000 scale), so a genuine change over time is visible at a glance. Compare exactly two visits with a decline callout, or view every visit the subject has at once.</p>
+
+    <div class="mode-toggle">
+      <button type="button" class="mode-btn active" data-mode="pair" onclick="cwSetMode('pair')">Compare 2 visits</button>
+      <button type="button" class="mode-btn" data-mode="all" onclick="cwSetMode('all')">View all visits</button>
+    </div>
 
     <div class="filters" style="margin-top:0;">
       <div><span class="flabel">Subject</span><select id="cw-subj"></select></div>
       <div><span class="flabel">Eye</span><select id="cw-eye"></select></div>
-      <div><span class="flabel">1st visit</span><select id="cw-visitA"></select></div>
-      <div><span class="flabel">2nd visit</span><select id="cw-visitB"></select></div>
+      <div id="cw-pair-filters" style="display:contents;">
+        <div><span class="flabel">1st visit</span><select id="cw-visitA"></select></div>
+        <div><span class="flabel">2nd visit</span><select id="cw-visitB"></select></div>
+      </div>
     </div>
 
     <div id="cw-body" class="rm-body"></div>
@@ -1332,6 +1347,14 @@ const cwEyeSel = document.getElementById('cw-eye');
 const cwVisitASel = document.getElementById('cw-visitA');
 const cwVisitBSel = document.getElementById('cw-visitB');
 const CW_DECLINE_THRESHOLD = 100; // cells/mm² -- minimum drop to call out as a "reduction"
+let cwMode = 'pair'; // 'pair' | 'all'
+
+function cwSetMode(mode){
+  cwMode = mode;
+  document.querySelectorAll('#sec-wheel-compare .mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode===mode));
+  document.getElementById('cw-pair-filters').style.display = mode==='pair' ? 'contents' : 'none';
+  cwRender();
+}
 
 function cwColor(rec){
   if(!rec) return COLORS.miss.fill;
@@ -1402,30 +1425,61 @@ function cwReductionText(recA, recB){
   return `<b style="color:#B23A22;">Reduction:</b> ${parts.join(', ')}`;
 }
 
+const CW_SCALE_BAR_HTML = `
+  <div class="wh-scale-bar" style="display:flex;">
+    <div class="wh-scale-track"><div class="wh-scale-gradient"></div></div>
+    <div class="wh-scale-labels">
+      <span style="top:0%;">3000</span>
+      <span style="top:16.67%;">2500</span>
+      <span style="top:33.33%;">2000</span>
+      <span style="top:50%;">1500</span>
+      <span style="top:66.67%;">1000</span>
+      <span style="top:100%;">0</span>
+    </div>
+  </div>`;
+
 function cwRender(){
-  const subj = cwSubjSel.value, eye = cwEyeSel.value, vA = cwVisitASel.value, vB = cwVisitBSel.value;
+  const subj = cwSubjSel.value, eye = cwEyeSel.value;
   const body = document.getElementById('cw-body');
-  if(!subj || !eye || !vA || !vB){
+  if(!subj || !eye){
+    body.innerHTML = '<div class="rm-empty">Not enough visits with location data for this subject/eye.</div>';
+    return;
+  }
+
+  if(cwMode==='all'){
+    const visits = VISIT_ORDER.filter(v => RAW.some(r=>r.subj===subj && r.eye===eye && r.visit===v && r.loc!=null));
+    if(!visits.length){
+      body.innerHTML = '<div class="rm-empty">No visits with location data for this subject/eye.</div>';
+      return;
+    }
+    const recMaps = visits.map(v => rmLocRecords(subj, eye, v));
+    const wheelsHtml = visits.map((v,i) => `<div class="rm-eye"><h3>${v}</h3>${cwWheelSVG(recMaps[i])}</div>`).join('');
+    const reduction = recMaps.length>1
+      ? `${cwReductionText(recMaps[0], recMaps[recMaps.length-1])} <span style="color:var(--ink-soft);">(1st visit ${visits[0]} vs last visit ${visits[visits.length-1]})</span>`
+      : '';
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr auto;gap:26px;width:100%;align-items:start;">
+        <div class="rm-pair" style="display:flex;gap:26px;flex:1 1 auto;justify-content:center;flex-wrap:wrap;">${wheelsHtml}</div>
+        ${CW_SCALE_BAR_HTML}
+      </div>
+      ${reduction ? `<div style="margin-top:14px;font-size:13.5px;text-align:center;">${reduction}</div>` : ''}`;
+    return;
+  }
+
+  const vA = cwVisitASel.value, vB = cwVisitBSel.value;
+  if(!vA || !vB){
     body.innerHTML = '<div class="rm-empty">Not enough visits with location data for this subject/eye.</div>';
     return;
   }
   const recA = rmLocRecords(subj, eye, vA);
   const recB = rmLocRecords(subj, eye, vB);
   body.innerHTML = `
-    <div class="rm-pair" style="display:flex;gap:26px;width:100%;justify-content:center;flex-wrap:wrap;">
-      <div class="rm-eye"><h3>1st visit &nbsp;— ${vA}</h3>${cwWheelSVG(recA)}</div>
-      <div class="rm-eye"><h3>2nd visit &nbsp;— ${vB}</h3>${cwWheelSVG(recB)}</div>
-    </div>
-    <div class="wh-scale-bar" style="display:flex;margin:14px auto 0;">
-      <div class="wh-scale-track"><div class="wh-scale-gradient"></div></div>
-      <div class="wh-scale-labels">
-        <span style="top:0%;">3000</span>
-        <span style="top:16.67%;">2500</span>
-        <span style="top:33.33%;">2000</span>
-        <span style="top:50%;">1500</span>
-        <span style="top:66.67%;">1000</span>
-        <span style="top:100%;">0</span>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:26px;width:100%;align-items:start;">
+      <div class="rm-pair" style="display:flex;gap:26px;flex:1 1 auto;justify-content:center;flex-wrap:wrap;">
+        <div class="rm-eye"><h3>1st visit &nbsp;— ${vA}</h3>${cwWheelSVG(recA)}</div>
+        <div class="rm-eye"><h3>2nd visit &nbsp;— ${vB}</h3>${cwWheelSVG(recB)}</div>
       </div>
+      ${CW_SCALE_BAR_HTML}
     </div>
     <div style="margin-top:14px;font-size:13.5px;text-align:center;">${cwReductionText(recA, recB)}</div>`;
 }
